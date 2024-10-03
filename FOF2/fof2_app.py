@@ -39,8 +39,14 @@ def get_timing_data():
 df = get_timing_data()
 
 
+def specimen_sorting(spec):
+    return sorted(spec,key = lambda x:int(str(x).split("-")[-1]))
 
-specimens = sorted(df['specimen'].unique(),key = lambda x:int(str(x).split("-")[-1]))
+
+specimens = specimen_sorting(df['specimen'].unique())
+
+target_specimens = specimen_sorting(['FOF2-1', 'FOF2-13', 'FOF2-25', 'FOF2-2', 'FOF2-9', 'FOF2-11', 'FOF2-28', 'FOF2-17', 'FOF2-20'])
+
 
 if not len(specimens):
     st.warning("Select at least one specimen")
@@ -48,7 +54,7 @@ if not len(specimens):
 selected_specimens = st.multiselect(
     'Which specimen(s) would you like to review?',
     specimens,
-    ['FOF2-1', 'FOF2-13', 'FOF2-25', 'FOF2-2', 'FOF2-9', 'FOF2-11', 'FOF2-28', 'FOF2-17', 'FOF2-20']
+    
 )
 
 
@@ -61,7 +67,7 @@ def get_random_color():
     """Generate a random hex color."""
     return f"#{random.randint(0, 0xFFFFFF):06x}"
 
-for s in sorted(selected_specimens,key = lambda x:int(str(x).split("-")[-1])):
+for s in specimen_sorting(selected_specimens):
     # Filter data for the selected specimen
     filtered_df = df[df.specimen == s].copy().reset_index(drop=True)
     if len(filtered_df.index)==0:
