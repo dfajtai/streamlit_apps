@@ -61,6 +61,7 @@ for s in selected_specimens:
         filtered_df,
         x_start='start',
         x_end='end',
+        y='specimen',
         title=s
     )
 
