@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_timeline import st_timeline
+import plotly.express as px
 
 import pandas as pd
 
@@ -62,16 +62,20 @@ items = filtered_df.to_dict()
 groups = [{'id':g,'content':g,'style':'color: black; background-color: #a9a9a98F;'} for g in groups]
     
     
-timeline = st_timeline(items, groups=groups, options={"selectable": True, 
-                                                      "multiselect": True, 
-                                                      "zoomable": True, 
-                                                      "verticalScroll": True, 
-                                                      "horizontalScroll":True,
-                                                      "stack": False,
-                                                      "height": 200, 
-                                                      "margin": {"axis": 5}, 
-                                                      "groupHeightMode": "auto", 
-                                                      "orientation": {"axis": "top", "item": "top"}})
 
-st.subheader("Selected specimen(s)")
-st.write(timeline)
+# Plot the timeline using Plotly Express
+fig = px.timeline(
+    df,
+    x_start='start_time',
+    x_end='end_time',
+    y='specimen',
+    color='specimen',
+    title="Measurement Timeline"
+)
+
+# Update layout for better presentation
+fig.update_yaxes(categoryorder="total ascending")
+fig.update_layout(showlegend=False)
+
+# Display the plot in Streamlit
+st.plotly_chart(fig)
