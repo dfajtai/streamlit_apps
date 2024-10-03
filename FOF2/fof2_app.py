@@ -101,8 +101,8 @@ for s in specimen_sorting(selected_specimens):
         for b in range(1,block+1):
             sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
             
-            st.subheader(f"[Block {b}] num of measurements: {len(sub_df.index)}", divider=True)
-
+            st.subheader(f"[Block {b}]", divider=True)
+            st.write(f"Number of measurements: {len(sub_df.index)} of {len(filtered_df.index)}")
             # Set min and max time ranges for the block
             min_dt = sub_df['start'].min()
             max_dt = sub_df['end'].max()
