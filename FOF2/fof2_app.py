@@ -58,7 +58,7 @@ selected_specimens = st.multiselect(
 )
 
 if len(specimens)>0:
-    with st.expander("Recordings of the selected subjects"):
+    with st.expander("All recorded events for the selected subjects"):
         st.dataframe(df[df['specimen'].isin(selected_specimens)][['specimen','start','end','duration[s]','duration']].sort_values(by="start").reset_index(drop=True))
         
 
