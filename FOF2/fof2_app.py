@@ -110,6 +110,7 @@ for s in sorted(selected_specimens):
                 y='specimen',
                 color = 'color',
                 hover_data = ['start','end','duration[s]']
+                height = 50
                 # range_x=[min_dt, max_dt]
             )
 
