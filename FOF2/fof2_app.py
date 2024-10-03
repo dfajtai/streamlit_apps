@@ -68,8 +68,8 @@ fig = px.timeline(
     filtered_df,
     x_start='start',
     x_end='end',
-    y='specimen',
-    color='specimen',
+    y='group',
+    color='group',
     title="Measurement Timeline"
 )
 
