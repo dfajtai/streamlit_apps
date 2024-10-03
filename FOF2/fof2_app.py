@@ -51,6 +51,7 @@ selected_specimens = st.multiselect(
     ['FOF2-1', 'FOF2-13', 'FOF2-25', 'FOF2-2', 'FOF2-9', 'FOF2-11', 'FOF2-28', 'FOF2-17', 'FOF2-20']
 )
 
+
 block_dt = st.slider(
     "Maximim distance in MINUTES between measurements",
     min_value=0,max_value=720,value=90, step=5
@@ -60,7 +61,7 @@ def get_random_color():
     """Generate a random hex color."""
     return f"#{random.randint(0, 0xFFFFFF):06x}"
 
-for s in sorted(selected_specimens):
+for s in sorted(selected_specimens,key = lambda x:int(str(x).split("-")[-1])):
     # Filter data for the selected specimen
     filtered_df = df[df.specimen == s].copy().reset_index(drop=True)
     if len(filtered_df.index)==0:
