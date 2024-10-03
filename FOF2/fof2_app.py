@@ -66,14 +66,14 @@ for s in sorted(selected_specimens):
         # Calculate time difference in hours between the previous row's 'end' and current row's 'start'
         dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
         
-        # Check if the time difference is more than 24 hours
+        # Check if the time difference is more than X hours
         if dt > 5:
             block += 1
         
         filtered_df.at[index, 'block'] = block
 
     # Plotting each block
-    for b in range(block):
+    for b in range(block+1):
         sub_df = filtered_df[filtered_df["block"] == b]
         
         st.write(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}")
