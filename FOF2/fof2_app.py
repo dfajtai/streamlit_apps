@@ -107,8 +107,8 @@ if len(specimens)>0:
             for b in range(1,block+1):
                 _df = filtered_df[filtered_df["block"] ==b ]
                 n = len(_df)
-                start = _df["start"].min().dt.date
-                end = _df["end"].max().dt.date
+                start = _df["start"].min().date
+                end = _df["end"].max().date
                 if start!=end:
                     st.write(f"Block {b}: {n} measurements from {start} to {end}")
                 else:
