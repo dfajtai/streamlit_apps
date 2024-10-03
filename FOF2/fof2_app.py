@@ -1,5 +1,6 @@
 import streamlit as st
 import plotly.express as px
+import random
 import pandas as pd
 from pathlib import Path
 
@@ -29,10 +30,11 @@ def get_timing_data():
     df['start'] = pd.to_datetime(df['start_time'])
     df['end'] = pd.to_datetime(df['end_time'])
     df['duration'] = df["end"]-df["start"]
+    df['duration[s]'] = df['duration'] / pd.Timedelta('1 second')
     df['id'] = df['idx']
     # df['content'] = df.apply(lambda x: f'Specimen {x.get("specimen")}\nMeasurement {x.get("measurement")}', axis=1)
 
-    return df[['specimen', 'start', 'end', 'duration']]
+    return df[['specimen', 'start', 'end', 'duration','duration[s]']]
 
 df = get_timing_data()
 
@@ -55,6 +57,10 @@ block_dt = st.slider(
     "Maximim distance in hours between measurements",
     min_value=0.5,max_value=12.0,value=5.0, step=0.5
 )
+
+def get_random_color():
+    """Generate a random hex color."""
+    return f"#{random.randint(0, 0xFFFFFF):06x}"
 
 for s in sorted(selected_specimens):
     # Filter data for the selected specimen
@@ -81,6 +87,8 @@ for s in sorted(selected_specimens):
             
             filtered_df.at[index, 'block'] = block
 
+        filtered_df['color'] = filtered_df['block'].apply(lambda x: get_random_color())
+
         # Plotting each block
         for b in range(1,block+1):
             sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
@@ -98,7 +106,8 @@ for s in sorted(selected_specimens):
                 x_end='end',
                 y='specimen',
                 title=f"Specimen '{s}' [Block {b}]",
-                color = 'index'
+                color = 'color',
+                hover_data = ['start','end','duration[s]']
                 # range_x=[min_dt, max_dt]
             )
 
