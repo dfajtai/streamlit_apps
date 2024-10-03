@@ -52,7 +52,8 @@ selected_specimens = st.multiselect(
 
 for s in sorted(selected_specimens):
     # Filter data for the selected specimen
-    filtered_df = df[df.specimen == s].copy()
+    filtered_df = df[df.specimen == s].copy().sort_values(by="start")
+    
 
     # Initialize block column
     filtered_df['block'] = 0
