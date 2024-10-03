@@ -101,8 +101,6 @@ if len(specimens)>0:
                 filtered_df.at[index, 'block'] = block
 
             filtered_df['color'] = filtered_df['block'].apply(lambda x: get_random_color())
-
-            st.header(s, divider=False)
             
             for b in range(1,block+1):
                 _df = filtered_df[filtered_df["block"] ==b ]
