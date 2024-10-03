@@ -23,7 +23,7 @@ def get_timing_data():
     """
 
     # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/measurements.csv'
+    DATA_FILENAME = Path(__file__).parent/'data/recordings.csv'
     df = pd.read_csv(DATA_FILENAME)
 
     # Convert columns to appropriate formats
@@ -32,7 +32,7 @@ def get_timing_data():
     df['duration'] = df["end"]-df["start"]
     df['duration[s]'] = df['duration'] / pd.Timedelta('1 second')
     df['id'] = df['idx']
-    # df['content'] = df.apply(lambda x: f'Specimen {x.get("specimen")}\nMeasurement {x.get("measurement")}', axis=1)
+    # df['content'] = df.apply(lambda x: f'Specimen {x.get("specimen")}\nRecording {x.get("recording")}', axis=1)
 
     return df[['specimen', 'start', 'end', 'duration','duration[s]']]
 
@@ -58,12 +58,12 @@ selected_specimens = st.multiselect(
 )
 
 if len(specimens)>0:
-    with st.expander("Measurements of the selected subjects"):
-        st.table(df[df['specimen'].isin(selected_specimens)][['specimen','start','end','duration[s]','duration']].sort_values(by="start").reset_index(drop=True))
+    with st.expander("Recordings of the selected subjects"):
+        st.dataframe(df[df['specimen'].isin(selected_specimens)][['specimen','start','end','duration[s]','duration']].sort_values(by="start").reset_index(drop=True))
         
 
     block_dt = st.slider(
-        "Maximim time gap between measurements [minute]",
+        "Maximim time gap between recordings [minute]",
         min_value=0,max_value=720,value=90, step=5
     )
 
@@ -108,16 +108,16 @@ if len(specimens)>0:
                 start =_df["start"].min().date()
                 end = _df["end"].max().date()
                 if start!=end:
-                    st.write(f"Block {b}: {n} measurements from {start} to {end}")
+                    st.write(f"Block {b}: {n} recordings from {start} to {end}")
                 else:
-                    st.write(f"Block {b}: {n} measurements on {start}")
+                    st.write(f"Block {b}: {n} recordings on {start}")
             
             # Plotting each block
             for b in range(1,block+1):
                 sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
                 
                 st.subheader(f"[Block {b}]", divider=True)
-                st.write(f"Number of measurements: {len(sub_df.index)} of {len(filtered_df.index)}")
+                st.write(f"Number of recordings: {len(sub_df.index)} of {len(filtered_df.index)}")
                 # Set min and max time ranges for the block
                 min_dt = sub_df['start'].min()
                 max_dt = sub_df['end'].max()
@@ -142,6 +142,6 @@ if len(specimens)>0:
                 st.plotly_chart(fig)
                 
                 with st.expander("Table"):
-                    st.table(sub_df[['specimen','start','end','duration[s]','duration']])
+                    st.dataframe(sub_df[['specimen','start','end','duration[s]','duration']])
             
             st.write("")
