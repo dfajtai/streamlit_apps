@@ -54,7 +54,7 @@ if not len(specimens):
 selected_specimens = st.multiselect(
     'Which specimen(s) would you like to review?',
     specimens,
-    
+    target_specimens
 )
 
 
