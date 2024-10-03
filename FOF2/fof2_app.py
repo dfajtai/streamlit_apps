@@ -60,7 +60,7 @@ selected_specimens = st.multiselect(
 if len(specimens)>0:
     with st.expander("Measurements of the selected subjects"):
         st.table(df[df['specimen'].isin(selected_specimens)][['specimen','start','end','duration[s]','duration']])
-
+        
 
     block_dt = st.slider(
         "Maximim distance in MINUTES between measurements",
@@ -82,7 +82,6 @@ if len(specimens)>0:
         with st.container(border=True):
             st.header(s, divider=False)
             
-            
             # Initialize block column
             filtered_df['block'] = 1
             
@@ -103,6 +102,18 @@ if len(specimens)>0:
 
             filtered_df['color'] = filtered_df['block'].apply(lambda x: get_random_color())
 
+            st.header(s, divider=False)
+            
+            for b in range(1,block+1):
+                _df = filtered_df[filtered_df["block"] ==b ]
+                n = len(_df)
+                start = _df["start"].min().dt.date
+                end = _df["end"].max().dt.date
+                if start!=end:
+                    st.write(f"Block {b}: {n} measurements from {start} to {end}")
+                else:
+                    st.write(f"Block {b}: {n} measurements on {start}")
+            
             # Plotting each block
             for b in range(1,block+1):
                 sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
