@@ -66,7 +66,7 @@ for s in sorted(selected_specimens):
         if dt > 24:
             block+=1
         
-        filtered_df.iat[index]["block"] = block
+        filtered_df.iat[index,"block"] = block
     
     for b in range(block):
         sub_df = filtered_df[filtered_df["block"] == b]
