@@ -52,7 +52,7 @@ selected_specimens = st.multiselect(
 
 for s in sorted(selected_specimens):
     # Filter data for the selected specimen
-    filtered_df = df[df.specimen == s].copy().sort_values(by="start")
+    filtered_df = df[df.specimen == s].copy()
     
 
     # Initialize block column
@@ -75,7 +75,7 @@ for s in sorted(selected_specimens):
 
     # Plotting each block
     for b in range(block+1):
-        sub_df = filtered_df[filtered_df["block"] == b]
+        sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start")
         
         st.write(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}")
 
@@ -83,6 +83,7 @@ for s in sorted(selected_specimens):
         min_dt = sub_df['start'].min()
         max_dt = sub_df['end'].max()
         st.write(f"FROM {min_dt} TO {max_dt}")
+        st.table(sub_df)
 
         # Plot the timeline using Plotly Express
         fig = px.timeline(
