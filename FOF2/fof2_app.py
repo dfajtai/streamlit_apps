@@ -67,7 +67,7 @@ for s in sorted(selected_specimens):
         dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
         
         # Check if the time difference is more than 24 hours
-        if dt > 24:
+        if dt > 5:
             block += 1
         
         filtered_df.at[index, 'block'] = block
