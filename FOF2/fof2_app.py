@@ -56,9 +56,9 @@ for s in sorted(selected_specimens):
     
 
     # Initialize block column
-    filtered_df['block'] = 0
+    filtered_df['block'] = 1
     
-    block = 0
+    block = 1
     # Loop through the rows and calculate the time difference (dt)
     for index in range(1, len(filtered_df)):
         prev_end = filtered_df.iloc[index - 1]['end']
@@ -82,7 +82,7 @@ for s in sorted(selected_specimens):
         # Set min and max time ranges for the block
         min_dt = sub_df['start'].min()
         max_dt = sub_df['end'].max()
-        st.write(f"FROM {min_dt} TO {max_dt}")
+        
         st.table(sub_df)
 
         # Plot the timeline using Plotly Express
