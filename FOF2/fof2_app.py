@@ -59,7 +59,7 @@ for s in sorted(selected_specimens):
     
     min_dt = filtered_df.start.min()
     max_dt = filtered_df.end.max()
-    st.echo(f'Specimen {s} [{min_dt} .. {max_dt}]')
+    st.echo()
     
     # Plot the timeline using Plotly Express
     fig = px.timeline(
@@ -67,7 +67,7 @@ for s in sorted(selected_specimens):
         x_start='start',
         x_end='end',
         y='specimen',
-        title=s,
+        title=f"Specimen '{s}' [{min_dt} .. {max_dt}]",
         range_x = [min_dt,max_dt]
     )
 
