@@ -108,7 +108,6 @@ for s in sorted(selected_specimens):
                 x_start='start',
                 x_end='end',
                 y='specimen',
-                title=f"Specimen '{s}' [Block {b}]",
                 color = 'color',
                 hover_data = ['start','end','duration[s]']
                 # range_x=[min_dt, max_dt]
