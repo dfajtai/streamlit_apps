@@ -73,8 +73,10 @@ for s in sorted(selected_specimens):
         filtered_df.at[index, 'block'] = block
 
     # Plotting each block
-    for b in range(block + 1):
+    for b in range(block):
         sub_df = filtered_df[filtered_df["block"] == b]
+        
+        st.write(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}")
 
         # Set min and max time ranges for the block
         min_dt = sub_df.start.min()
@@ -87,7 +89,7 @@ for s in sorted(selected_specimens):
             x_end='end',
             y='specimen',
             title=f"Specimen '{s}' [Block {b + 1}]",
-            range_x=[min_dt, max_dt]
+            # range_x=[min_dt, max_dt]
         )
 
         # Update layout for better presentation
