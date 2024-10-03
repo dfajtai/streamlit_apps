@@ -59,7 +59,7 @@ selected_specimens = st.multiselect(
 
 if len(specimens)>0:
     with st.expander("Measurements of the selected subjects"):
-        st.table(df[df['specimen'].isin(selected_specimens)][['specimen','start','end','duration[s]','duration']])
+        st.table(df[df['specimen'].isin(selected_specimens)][['specimen','start','end','duration[s]','duration']].sort_values(by="start").reset_index(drop=True))
         
 
     block_dt = st.slider(
