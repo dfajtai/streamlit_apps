@@ -79,8 +79,8 @@ for s in sorted(selected_specimens):
         st.write(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}")
 
         # Set min and max time ranges for the block
-        min_dt = sub_df.start.min()
-        max_dt = sub_df.end.max()
+        min_dt = sub_df['start'].min()
+        max_dt = sub_df['end'].max()
         st.write(f"FROM {min_dt} TO {max_dt}")
 
         # Plot the timeline using Plotly Express
