@@ -28,10 +28,11 @@ def get_timing_data():
     # Convert columns to appropriate formats
     df['start'] = pd.to_datetime(df['start_time'])
     df['end'] = pd.to_datetime(df['end_time'])
+    df['duration'] = df["end"]-df["start"]
     df['id'] = df['idx']
-    df['content'] = df.apply(lambda x: f'Specimen {x.get("specimen")}\nMeasurement {x.get("measurement")}', axis=1)
+    # df['content'] = df.apply(lambda x: f'Specimen {x.get("specimen")}\nMeasurement {x.get("measurement")}', axis=1)
 
-    return df[['id', 'content', 'start', 'end', 'specimen']]
+    return df[['specimen', 'start', 'end', 'duration']]
 
 df = get_timing_data()
 
