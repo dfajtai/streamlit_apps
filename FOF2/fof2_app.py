@@ -54,8 +54,8 @@ selected_specimens = st.multiselect(
 )
 
 block_dt = st.slider(
-    "Maximim distance in hours between measurements",
-    min_value=0.5,max_value=12.0,value=5.0, step=0.5
+    "Maximim distance in MINUTES between measurements",
+    min_value=0,max_value=720,value=90, step=5
 )
 
 def get_random_color():
@@ -82,9 +82,9 @@ for s in sorted(selected_specimens):
             current_start = filtered_df.iloc[index]['start']
             
             # Calculate time difference in hours between the previous row's 'end' and current row's 'start'
-            dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
+            dt = (current_start - prev_end) / pd.Timedelta(minutes=1)  # Calculate the difference in hours
             
-            # Check if the time difference is more than X hours
+            # Check if the time difference is more than X minutes
             if dt > block_dt:
                 block += 1
             
