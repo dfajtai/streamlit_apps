@@ -98,6 +98,7 @@ for s in sorted(selected_specimens):
                 x_end='end',
                 y='specimen',
                 title=f"Specimen '{s}' [Block {b}]",
+                color = 'index'
                 # range_x=[min_dt, max_dt]
             )
 
