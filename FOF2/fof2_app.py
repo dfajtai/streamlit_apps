@@ -23,7 +23,7 @@ def get_timing_data():
     """
 
     # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/recordings.csv'
+    DATA_FILENAME = Path(__file__).parent/'data/measurements.csv'
     df = pd.read_csv(DATA_FILENAME)
 
     # Convert columns to appropriate formats
