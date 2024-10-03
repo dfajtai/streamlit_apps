@@ -121,4 +121,4 @@ for s in sorted(selected_specimens):
             st.plotly_chart(fig)
             
             with st.expander("Table"):
-                st.table(sub_df)
+                st.table(sub_df[['specimen','start','end','duration[s]','duration']])
