@@ -65,9 +65,9 @@ groups = [{'id':g,'content':g,'style':'color: black; background-color: #a9a9a98F
 
 # Plot the timeline using Plotly Express
 fig = px.timeline(
-    df,
-    x_start='start_time',
-    x_end='end_time',
+    filtered_df,
+    x_start='start',
+    x_end='end',
     y='specimen',
     color='specimen',
     title="Measurement Timeline"
