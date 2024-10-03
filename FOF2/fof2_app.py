@@ -31,51 +31,43 @@ def get_timing_data():
     # Convert years from string to integers
     df['start'] = pd.to_datetime(df['start_time'])
     df['end'] = pd.to_datetime(df['end_time'])
-    df['group'] = df['specimen']
     df['id'] = df['idx']
     df['content'] = df.apply(lambda x:f'Specimen {x.get("specimen")}\nMeasurement {x.get("measurement")}', axis=1 )
     
 
-    return df[['id','content','start','end','group']]
+    return df[['id','content','start','end','specimen']]
 
 df = get_timing_data()
 
 # Add some spacing
 ''
 ''
-groups = df['group'].unique()
+specimens = df['specimen'].unique()
 
-if not len(groups):
+if not len(specimens):
     st.warning("Select at least one specimen")
     
 
 selected_specimens = st.multiselect(
     'Which specimen(s) would you like to review?',
-    groups,
+    specimens,
     ['FOF2-1','FOF2-13','FOF2-25','FOF2-2','FOF2-9','FOF2-11','FOF2-28','FOF2-17','FOF2-20'])
     
-    
-filtered_df = df[df['group'].isin(selected_specimens)]
 
-items = filtered_df.to_dict()
+for s in selected_specimens:
+    filtered_df = df[df.specimen==s]
+    # Plot the timeline using Plotly Express
+    fig = px.timeline(
+        filtered_df,
+        x_start='start',
+        x_end='end',
+        title=s
+    )
 
-groups = [{'id':g,'content':g,'style':'color: black; background-color: #a9a9a98F;'} for g in groups]
-    
-    
+    # Update layout for better presentation
+    fig.update_yaxes(categoryorder="total ascending")
+    fig.update_layout(showlegend=False)
 
-# Plot the timeline using Plotly Express
-fig = px.timeline(
-    filtered_df,
-    x_start='start',
-    x_end='end',
-    y='group',
-    color='group',
-    title="Measurement Timeline"
-)
+    # Display the plot in Streamlit
+    st.plotly_chart(fig)
 
-# Update layout for better presentation
-fig.update_yaxes(categoryorder="total ascending")
-fig.update_layout(showlegend=False)
-
-# Display the plot in Streamlit
-st.plotly_chart(fig)
