@@ -56,13 +56,18 @@ selected_specimens = st.multiselect(
 
 for s in selected_specimens:
     filtered_df = df[df.specimen==s]
+    
+    min_dt = filtered_df.start.min()
+    max_dt = filtered_df.end.max()
+    
     # Plot the timeline using Plotly Express
     fig = px.timeline(
         filtered_df,
         x_start='start',
         x_end='end',
         y='specimen',
-        title=s
+        title=s,
+        range_x = [min_dt,max_dt]
     )
 
     # Update layout for better presentation
