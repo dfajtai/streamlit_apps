@@ -55,7 +55,7 @@ selected_specimens = st.multiselect(
     ['FOF2-1','FOF2-13','FOF2-25','FOF2-2','FOF2-9','FOF2-11','FOF2-28','FOF2-17','FOF2-20'])
     
     
-filtered_df = df[df['groups'].isin(selected_specimens)]
+filtered_df = df[df['group'].isin(selected_specimens)]
 
 items = filtered_df.to_dict()
 
