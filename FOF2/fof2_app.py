@@ -38,9 +38,7 @@ def get_timing_data():
 
 df = get_timing_data()
 
-# Add some spacing
-st.write("")
-st.write("")
+
 
 specimens = sorted(df['specimen'].unique())
 
@@ -123,3 +121,5 @@ for s in sorted(selected_specimens):
             
             with st.expander("Table"):
                 st.table(sub_df[['specimen','start','end','duration[s]','duration']])
+        
+        st.write("")
