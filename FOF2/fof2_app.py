@@ -75,7 +75,7 @@ for s in sorted(selected_specimens):
         filtered_df.at[index, 'block'] = block
 
     # Plotting each block
-    for b in range(block+1):
+    for b in range(1,block+1):
         sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
         
         st.write(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}")
@@ -92,7 +92,7 @@ for s in sorted(selected_specimens):
             x_start='start',
             x_end='end',
             y='specimen',
-            title=f"Specimen '{s}' [Block {b + 1}]",
+            title=f"Specimen '{s}' [Block {b}]",
             # range_x=[min_dt, max_dt]
         )
 
