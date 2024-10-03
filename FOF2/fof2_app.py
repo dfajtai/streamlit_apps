@@ -69,7 +69,7 @@ for s in sorted(selected_specimens):
         row["block"] = block
     
     for b in range(block):
-        sub_df = filtered_df[filtered_df.block == b]
+        sub_df = filtered_df[filtered_df["block"] == b]
         
         min_dt = filtered_df.start.min()
         max_dt = filtered_df.end.max()
