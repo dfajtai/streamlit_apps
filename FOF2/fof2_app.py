@@ -42,7 +42,7 @@ df = get_timing_data()
 st.write("")
 st.write("")
 
-specimens = df['specimen'].unique()
+specimens = sorted(df['specimen'].unique())
 
 if not len(specimens):
     st.warning("Select at least one specimen")
