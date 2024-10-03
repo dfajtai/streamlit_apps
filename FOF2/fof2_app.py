@@ -53,7 +53,7 @@ selected_specimens = st.multiselect(
 
 block_dt = st.slider(
     "Maximim distance in hours between measurements",
-    min_value=1,max_value=24,value=5, step=0.5
+    min_value=0.5,max_value=12.0,value=5.0, step=0.5
 )
 
 for s in sorted(selected_specimens):
