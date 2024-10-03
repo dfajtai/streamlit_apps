@@ -62,7 +62,7 @@ for s in sorted(selected_specimens):
         if index == 0:
             continue
         
-        dt = (row.get('start') - filtered_df.iat[index-1,'end']).astype('timedelta64[h]')
+        dt = (row.get('start') - filtered_df.iloc[index-1]['end']).astype('timedelta64[h]')
         if dt > 24:
             block+=1
         
