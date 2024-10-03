@@ -53,7 +53,7 @@ selected_specimens = st.multiselect(
 
 block_dt = st.slider(
     "Maximim distance in hours between measurements",
-    min_value=1,max_value=24,value=5
+    min_value=1,max_value=24,value=5, step=0.5
 )
 
 for s in sorted(selected_specimens):
@@ -85,7 +85,7 @@ for s in sorted(selected_specimens):
         for b in range(1,block+1):
             sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
             
-            st.subheader(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}", divider=True)
+            st.subheader(f"Specimen '{s}' [Block {b}] num of measurements: {len(sub_df.index)}", divider=True)
 
             # Set min and max time ranges for the block
             min_dt = sub_df['start'].min()
