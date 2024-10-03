@@ -51,6 +51,11 @@ selected_specimens = st.multiselect(
     ['FOF2-1', 'FOF2-13', 'FOF2-25', 'FOF2-2', 'FOF2-9', 'FOF2-11', 'FOF2-28', 'FOF2-17', 'FOF2-20']
 )
 
+block_dt = st.slider(
+    "Maximim distance in hours between measurements",
+    min_value=1,max_value=24,value=5
+)
+
 for s in sorted(selected_specimens):
     # Filter data for the selected specimen
     filtered_df = df[df.specimen == s].copy().reset_index(drop=True)
@@ -69,7 +74,7 @@ for s in sorted(selected_specimens):
         dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
         
         # Check if the time difference is more than X hours
-        if dt > 5:
+        if dt > block_dt:
             block += 1
         
         filtered_df.at[index, 'block'] = block
@@ -84,7 +89,8 @@ for s in sorted(selected_specimens):
         min_dt = sub_df['start'].min()
         max_dt = sub_df['end'].max()
         
-        st.table(sub_df)
+        with st.expander("Table"):
+            st.table(sub_df)
 
         # Plot the timeline using Plotly Express
         fig = px.timeline(
