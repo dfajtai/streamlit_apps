@@ -59,52 +59,54 @@ block_dt = st.slider(
 for s in sorted(selected_specimens):
     # Filter data for the selected specimen
     filtered_df = df[df.specimen == s].copy().reset_index(drop=True)
-    
+    if len(filtered_df.index)==0:
+        continue
 
-    # Initialize block column
-    filtered_df['block'] = 1
-    
-    block = 1
-    # Loop through the rows and calculate the time difference (dt)
-    for index in range(1, len(filtered_df)):
-        prev_end = filtered_df.iloc[index - 1]['end']
-        current_start = filtered_df.iloc[index]['start']
+    with st.container(border=True):
+        # Initialize block column
+        filtered_df['block'] = 1
         
-        # Calculate time difference in hours between the previous row's 'end' and current row's 'start'
-        dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
-        
-        # Check if the time difference is more than X hours
-        if dt > block_dt:
-            block += 1
-        
-        filtered_df.at[index, 'block'] = block
+        block = 1
+        # Loop through the rows and calculate the time difference (dt)
+        for index in range(1, len(filtered_df)):
+            prev_end = filtered_df.iloc[index - 1]['end']
+            current_start = filtered_df.iloc[index]['start']
+            
+            # Calculate time difference in hours between the previous row's 'end' and current row's 'start'
+            dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
+            
+            # Check if the time difference is more than X hours
+            if dt > block_dt:
+                block += 1
+            
+            filtered_df.at[index, 'block'] = block
 
-    # Plotting each block
-    for b in range(1,block+1):
-        sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
-        
-        st.write(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}")
+        # Plotting each block
+        for b in range(1,block+1):
+            sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
+            
+            st.subheader(f"Specimen '{s}' [Block {b + 1}] num of measurements: {len(sub_df.index)}", divider=True)
 
-        # Set min and max time ranges for the block
-        min_dt = sub_df['start'].min()
-        max_dt = sub_df['end'].max()
-        
-        with st.expander("Table"):
-            st.table(sub_df)
+            # Set min and max time ranges for the block
+            min_dt = sub_df['start'].min()
+            max_dt = sub_df['end'].max()
+            
+            # Plot the timeline using Plotly Express
+            fig = px.timeline(
+                sub_df,
+                x_start='start',
+                x_end='end',
+                y='specimen',
+                title=f"Specimen '{s}' [Block {b}]",
+                # range_x=[min_dt, max_dt]
+            )
 
-        # Plot the timeline using Plotly Express
-        fig = px.timeline(
-            sub_df,
-            x_start='start',
-            x_end='end',
-            y='specimen',
-            title=f"Specimen '{s}' [Block {b}]",
-            # range_x=[min_dt, max_dt]
-        )
+            # Update layout for better presentation
+            fig.update_yaxes(categoryorder="total ascending")
+            fig.update_layout(showlegend=False)
 
-        # Update layout for better presentation
-        fig.update_yaxes(categoryorder="total ascending")
-        fig.update_layout(showlegend=False)
-
-        # Display the plot in Streamlit
-        st.plotly_chart(fig)
+            # Display the plot in Streamlit
+            st.plotly_chart(fig)
+            
+            with st.expander("Table"):
+                st.table(sub_df)
