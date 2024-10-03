@@ -57,24 +57,37 @@ selected_specimens = st.multiselect(
 for s in sorted(selected_specimens):
     filtered_df = df[df.specimen==s]
     
-    min_dt = filtered_df.start.min()
-    max_dt = filtered_df.end.max()
-    st.echo()
+    block = 0
+    for index,row in filtered_df.iterrows():
+        if index == 0:
+            continue
+        
+        dt = (row.get('start') - filtered_df.iat[index-1,'end']).astype('timedelta64[h]')
+        if dt > 24:
+            block+=1
+        
+        row["block"] = block
     
-    # Plot the timeline using Plotly Express
-    fig = px.timeline(
-        filtered_df,
-        x_start='start',
-        x_end='end',
-        y='specimen',
-        title=f"Specimen '{s}' [{min_dt} .. {max_dt}]",
-        range_x = [min_dt,max_dt]
-    )
+    for b in range(block):
+        sub_df = filtered_df[filtered_df.block == b]
+        
+        min_dt = filtered_df.start.min()
+        max_dt = filtered_df.end.max()
+        
+        # Plot the timeline using Plotly Express
+        fig = px.timeline(
+            filtered_df,
+            x_start='start',
+            x_end='end',
+            y='specimen',
+            title=f"Specimen '{s}' [{b+1}]",
+            range_x = [min_dt,max_dt]
+        )
 
-    # Update layout for better presentation
-    fig.update_yaxes(categoryorder="total ascending")
-    fig.update_layout(showlegend=False)
+        # Update layout for better presentation
+        fig.update_yaxes(categoryorder="total ascending")
+        fig.update_layout(showlegend=False)
 
-    # Display the plot in Streamlit
-    st.plotly_chart(fig)
+        # Display the plot in Streamlit
+        st.plotly_chart(fig)
 
