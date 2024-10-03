@@ -63,7 +63,7 @@ if len(specimens)>0:
         
 
     block_dt = st.slider(
-        "Maximim time gap between recordings [minute]",
+        "Maximum time gap between recordings [minute]",
         min_value=0,max_value=720,value=90, step=5
     )
 
