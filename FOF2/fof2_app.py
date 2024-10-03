@@ -68,56 +68,58 @@ for s in sorted(selected_specimens):
     if len(filtered_df.index)==0:
         continue
     
-    with st.expander(s,expanded=True):   
-        with st.container(border=True):
-            # Initialize block column
-            filtered_df['block'] = 1
+    with st.container(border=True):
+        st.header(s, divider=False)
+        
+        
+        # Initialize block column
+        filtered_df['block'] = 1
+        
+        block = 1
+        # Loop through the rows and calculate the time difference (dt)
+        for index in range(1, len(filtered_df)):
+            prev_end = filtered_df.iloc[index - 1]['end']
+            current_start = filtered_df.iloc[index]['start']
             
-            block = 1
-            # Loop through the rows and calculate the time difference (dt)
-            for index in range(1, len(filtered_df)):
-                prev_end = filtered_df.iloc[index - 1]['end']
-                current_start = filtered_df.iloc[index]['start']
-                
-                # Calculate time difference in hours between the previous row's 'end' and current row's 'start'
-                dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
-                
-                # Check if the time difference is more than X hours
-                if dt > block_dt:
-                    block += 1
-                
-                filtered_df.at[index, 'block'] = block
+            # Calculate time difference in hours between the previous row's 'end' and current row's 'start'
+            dt = (current_start - prev_end) / pd.Timedelta(hours=1)  # Calculate the difference in hours
+            
+            # Check if the time difference is more than X hours
+            if dt > block_dt:
+                block += 1
+            
+            filtered_df.at[index, 'block'] = block
 
-            filtered_df['color'] = filtered_df['block'].apply(lambda x: get_random_color())
+        filtered_df['color'] = filtered_df['block'].apply(lambda x: get_random_color())
 
-            # Plotting each block
-            for b in range(1,block+1):
-                sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
-                
-                st.subheader(f"[Block {b}] num of measurements: {len(sub_df.index)}", divider=True)
+        # Plotting each block
+        for b in range(1,block+1):
+            sub_df = (filtered_df[filtered_df["block"] == b]).copy().sort_values(by="start").reset_index(drop=True)
+            
+            st.subheader(f"[Block {b}] num of measurements: {len(sub_df.index)}", divider=True)
 
-                # Set min and max time ranges for the block
-                min_dt = sub_df['start'].min()
-                max_dt = sub_df['end'].max()
-                
-                # Plot the timeline using Plotly Express
-                fig = px.timeline(
-                    sub_df,
-                    x_start='start',
-                    x_end='end',
-                    y='specimen',
-                    title=f"Specimen '{s}' [Block {b}]",
-                    color = 'color',
-                    hover_data = ['start','end','duration[s]']
-                    # range_x=[min_dt, max_dt]
-                )
+            # Set min and max time ranges for the block
+            min_dt = sub_df['start'].min()
+            max_dt = sub_df['end'].max()
+            
+            # Plot the timeline using Plotly Express
+            fig = px.timeline(
+                sub_df,
+                x_start='start',
+                x_end='end',
+                y='specimen',
+                title=f"Specimen '{s}' [Block {b}]",
+                color = 'color',
+                hover_data = ['start','end','duration[s]']
+                # range_x=[min_dt, max_dt]
+            )
 
-                # Update layout for better presentation
-                fig.update_yaxes(categoryorder="total ascending")
-                fig.update_layout(showlegend=False)
+            # Update layout for better presentation
+            fig.update_yaxes(categoryorder="total ascending")
+            fig.update_layout(showlegend=False)
 
-                # Display the plot in Streamlit
-                st.plotly_chart(fig)
-                
-                with st.expander("Table"):
-                    st.table(sub_df)
+            # Display the plot in Streamlit
+            st.plotly_chart(fig)
+            
+            with st.expander("Table"):
+                st.table(sub_df)
