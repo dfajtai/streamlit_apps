@@ -33,6 +33,28 @@ def apply_background_color(im, color_hex):
     background.paste(im, mask=alpha)
     return background
 
+def make_circle_avatar_with_inner_border(img, diameter, border):
+    # A végleges átmérő: diameter (külső kör)
+    # Belső kép átmérője: diameter - 2*border
+    img_size = diameter - 2 * border
+    img_cropped = img.resize((img_size, img_size))
+
+    # Körmaszk képhez
+    inner_mask = Image.new("L", (img_size, img_size), 0)
+    draw = ImageDraw.Draw(inner_mask)
+    draw.ellipse((0, 0, img_size, img_size), fill=255)
+
+    # Körbe vágott kép
+    circle_img = Image.new("RGBA", (img_size, img_size), (0, 0, 0, 0))
+    circle_img.paste(img_cropped, (0, 0), mask=inner_mask)
+
+    # Border + kép kompozíció
+    final_img = Image.new("RGBA", (diameter, diameter), (0, 0, 0, 0))
+    draw_final = ImageDraw.Draw(final_img)
+    draw_final.ellipse((0, 0, diameter, diameter), fill=(255, 255, 255, 255))  # Fehér kör
+    final_img.paste(circle_img, (border, border), mask=inner_mask)
+    return final_img
+
 # Fejlett szöveg rajzoló fix magassággal és sorok közti távolsággal
 def draw_multiline_text_fixed_height(text_lines, width, height, font, line_spacing=12, text_color=(0, 0, 0)):
     text_img = Image.new("RGBA", (width, height), (255, 255, 255, 255))
@@ -156,17 +178,13 @@ def generate_qr_styled(data, center_img=None, style="Négyzet"):
     qr_img = qr.make_image(image_factory=StyledPilImage, module_drawer=drawer, fill_color="black", back_color="white").convert("RGBA")
 
     if center_img:
-        center = (qr_img.width // 2, qr_img.height // 2)
-        radius = qr_img.width // 5
-        mask = Image.new("L", qr_img.size, 0)
-        draw = ImageDraw.Draw(mask)
-        draw.ellipse((center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius), fill=255)
-        qr_img.paste((255,255,255,255), mask=mask)
-        profile = center_img.resize((radius * 2, radius * 2))
-        photomask = Image.new("L", (radius * 2, radius * 2), 0)
-        ImageDraw.Draw(photomask).ellipse((0, 0, radius * 2, radius * 2), fill=255)
-        profile.putalpha(photomask)
-        qr_img.paste(profile, (center[0] - radius, center[1] - radius), mask=profile.split()[3])
+        qr_w = qr_img.width
+        diameter = int(qr_w * 0.40)
+        border = int(qr_w * 0.03)
+        circle_avatar = make_circle_avatar_with_inner_border(center_img, diameter, border)
+        # QR közepére helyezés
+        center = (qr_w // 2 - diameter // 2, qr_w // 2 - diameter // 2)
+        qr_img.paste(circle_avatar, center, mask=circle_avatar.split()[3])
 
     return qr_img
 
