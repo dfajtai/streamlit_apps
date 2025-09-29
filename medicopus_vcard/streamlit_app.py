@@ -15,6 +15,9 @@ from qrcode.image.styles.moduledrawers import (
 )
 from qrcode.image.styles.moduledrawers import VerticalBarsDrawer, HorizontalBarsDrawer
 
+import requests
+from io import BytesIO
+
 def hex_to_rgba(hex_color, alpha=0):
     hex_color = hex_color.lstrip('#')
     lv = len(hex_color)
@@ -51,7 +54,9 @@ font = ImageFont.load_default()  # vagy adj meg egy saját ttf fájlt
 
 # Alap céglogó betöltése
 try:
-    company_logo = Image.open("./assets/medicopus_logo.png").convert("RGBA")
+    logo_url = "https://raw.githubusercontent.com/dfajtai/streamlit_apps/main/medicopus_vcard/assets/medicopus_logo.png"
+    response = requests.get(logo_url)
+    company_logo = Image.open(BytesIO(response.content)).convert("RGBA")
 except Exception:
     company_logo = None
 
