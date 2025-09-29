@@ -51,7 +51,7 @@ font = ImageFont.load_default()  # vagy adj meg egy saját ttf fájlt
 
 # Alap céglogó betöltése
 try:
-    company_logo = Image.open("assets/medicopus_logo.png").convert("RGBA")
+    company_logo = Image.open("./assets/medicopus_logo.png").convert("RGBA")
 except Exception:
     company_logo = None
 
