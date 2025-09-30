@@ -35,11 +35,17 @@ def apply_background_color(im, color_hex):
     background.paste(im, mask=alpha)
     return background
 
-def to_base64(img):
+def to_base64(img, img_format="PNG"):
     buffered = BytesIO()
-    img.save(buffered, format="JPEG")  # vagy "PNG" ha az kell
+    if img_format == "JPEG" and img.mode in ("RGBA", "LA"):
+        img = img.convert("RGB")
+    img.save(buffered, format=img_format)
     b64_str = base64.b64encode(buffered.getvalue()).decode()
     return b64_str
+
+def fold_base64_string(b64_str: str, line_length=75):
+    return '\n '.join(b64_str[i:i+line_length] for i in range(0, len(b64_str), line_length))
+
 
 def make_circle_avatar_with_inner_border(img, diameter, border):
     # A végleges átmérő: diameter (külső kör)
@@ -131,11 +137,11 @@ if img_choice == "Saját kép feltöltése":
     if uploaded_file:
         img = Image.open(uploaded_file)
         cropped_img = st_cropper(img, aspect_ratio=[1.0,1.0], return_type="image", box_color='blue')
-        st.image(cropped_img, caption='Kivágott kép', use_column_width=True)
+        st.image(cropped_img, caption='Kivágott kép', width = 200)
 elif img_choice == "Logó használata":
     if company_logo:
         cropped_img = company_logo
-        st.image(company_logo, caption="Cég logója", use_column_width=True)
+        st.image(company_logo, caption="Cég logója", width = 200)
     else:
         st.warning("A cég logó nem található vagy nincs feltöltve.")
 
@@ -143,9 +149,9 @@ elif img_choice == "Logó használata":
 bg_color = st.color_picker("Válassz hátterszínt a fényképhez", "#FFFFFF")
 
 rotate_option = st.radio("Profilkép forgatása:", ["Nincs forgatás", "Óramutató járásával megegyező", "Óramutató járásával ellentétes"])
+rotate_placeholder = st.empty()
 
-
-embed_base64_photo = st.checkbox("Kép beágyazása base64 kóddal a vCard-ba")
+embed_base64_photo = st.checkbox("Kép beágyazása base64 kóddal a vCard-ba (nem működik)", disabled=True, value=False)
 
 qr_style = st.radio("Válaszd ki a QR kód stílusát", [
     "Négyzet",
@@ -158,10 +164,21 @@ qr_style = st.radio("Válaszd ki a QR kód stílusát", [
 if cropped_img:
     cropped_img = apply_background_color(cropped_img, bg_color)
 
+    rotate = False
     if rotate_option == "Óramutató járásával megegyező":
+        rotate = True
         cropped_img = cropped_img.rotate(-90, expand=True)
     elif rotate_option == "Óramutató járásával ellentétes":
+        rotate = True
         cropped_img = cropped_img.rotate(90, expand=True)
+    else:
+        rotate = False
+
+    if rotate:
+        rotate_placeholder.image(cropped_img, caption="Kép forgatás után", width = 200)
+    else:
+        rotate_placeholder.empty()
+
 
 
 design = st.radio("Válaszd ki a dizájnt!", [
@@ -170,7 +187,7 @@ design = st.radio("Válaszd ki a dizájnt!", [
     "QR, középen körkép, felül adatok"
 ])
 
-def build_vcard(fields):
+def build_vcard(fields, img_format = "JPEG"):
     vcard_lines = ["BEGIN:VCARD", "VERSION:3.0"]
     for f in fields:
         val = active_fields.get(f['key'], "")
@@ -178,9 +195,10 @@ def build_vcard(fields):
             vcard_lines.append(f"{f['key']}:{val}")
 
     if embed_base64_photo and cropped_img:
-        photo_b64 = to_base64(cropped_img)
-        photo_field = f'PHOTO;ENCODING=b;TYPE=JPEG:{photo_b64}'
-        vcard_lines.insert(2, photo_field)
+        qr_img_resized = cropped_img.resize((32, 32), Image.Resampling.LANCZOS)
+        photo_b64 = to_base64(qr_img_resized, img_format=img_format)
+        photo_field = f'PHOTO;ENCODING=b;TYPE={img_format}:\n {fold_base64_string(photo_b64)}'
+        vcard_lines.append(photo_field)
 
     vcard_lines.append("END:VCARD")
     return "\n".join(vcard_lines)
@@ -195,7 +213,7 @@ def generate_qr_styled(data, center_img=None, style="Négyzet"):
         "Függőleges vonal": VerticalBarsDrawer(),
         "Vízszintes vonal": HorizontalBarsDrawer()
     }
-    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, border = 4)
     qr.add_data(data)
     qr.make(fit=True)
     drawer = style_map.get(style, SquareModuleDrawer())
