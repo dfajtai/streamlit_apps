@@ -16,6 +16,8 @@ from qrcode.image.styles.moduledrawers import (
 from qrcode.image.styles.moduledrawers import VerticalBarsDrawer, HorizontalBarsDrawer
 
 import requests
+
+import base64
 from io import BytesIO
 
 def hex_to_rgba(hex_color, alpha=0):
@@ -32,6 +34,12 @@ def apply_background_color(im, color_hex):
     alpha = im.split()[3]
     background.paste(im, mask=alpha)
     return background
+
+def to_base64(img):
+    buffered = BytesIO()
+    img.save(buffered, format="JPEG")  # vagy "PNG" ha az kell
+    b64_str = base64.b64encode(buffered.getvalue()).decode()
+    return b64_str
 
 def make_circle_avatar_with_inner_border(img, diameter, border):
     # A végleges átmérő: diameter (külső kör)
@@ -134,6 +142,11 @@ elif img_choice == "Logó használata":
 # Hátterszín választó
 bg_color = st.color_picker("Válassz hátterszínt a fényképhez", "#FFFFFF")
 
+rotate_option = st.radio("Profilkép forgatása:", ["Nincs forgatás", "Óramutató járásával megegyező", "Óramutató járásával ellentétes"])
+
+
+embed_base64_photo = st.checkbox("Kép beágyazása base64 kóddal a vCard-ba")
+
 qr_style = st.radio("Válaszd ki a QR kód stílusát", [
     "Négyzet",
     "Kör",
@@ -144,6 +157,11 @@ qr_style = st.radio("Válaszd ki a QR kód stílusát", [
 # Alkalmazzuk a hátterszínt a képhez, ha van kép vagy logó
 if cropped_img:
     cropped_img = apply_background_color(cropped_img, bg_color)
+
+    if rotate_option == "Óramutató járásával megegyező":
+        cropped_img = cropped_img.rotate(-90, expand=True)
+    elif rotate_option == "Óramutató járásával ellentétes":
+        cropped_img = cropped_img.rotate(90, expand=True)
 
 
 design = st.radio("Válaszd ki a dizájnt!", [
@@ -158,6 +176,12 @@ def build_vcard(fields):
         val = active_fields.get(f['key'], "")
         if val:
             vcard_lines.append(f"{f['key']}:{val}")
+
+    if embed_base64_photo and cropped_img:
+        photo_b64 = to_base64(cropped_img)
+        photo_field = f'PHOTO;ENCODING=b;TYPE=JPEG:{photo_b64}'
+        vcard_lines.insert(2, photo_field)
+
     vcard_lines.append("END:VCARD")
     return "\n".join(vcard_lines)
 
