@@ -108,7 +108,7 @@ fields = [
     {"label": "GPS koordináták (latitúdó; hosszúság)", "key": "GEO", "valid": r'^-?\d+(\.\d+)?;-?\d+(\.\d+)?$', "enabled": True, "default": "46.381597197125714;17.82524855165998"},
 ]
 
-st.title("Medicopus vCARD 3.0 generátor")
+st.title("Medicopus vCarc 3.0 generátor")
 
 # Aktiválható mezők kiválasztó oldalsáv
 active_fields = {}
