@@ -179,6 +179,11 @@ if img_choice != "Kép nélkül":
     crop_shape = st.radio("Crop forma választás:", ["Kör crop", "Négyzet crop"])
     if crop_shape == "Négyzet crop":
         corner_radius = st.slider("Sarok lekerekítése (pixelben)", min_value=5, max_value=200, value=5, step=5)
+    border_size = st.slider("Belső keret vastagsága (%)", min_value=0, max_value=10, value=3)
+else:
+    border_size = 0
+    corner_radius = 0
+    crop_shape = None
 
 
 if img_choice == "Saját kép feltöltése":
@@ -294,8 +299,8 @@ def generate_qr_styled(data, center_img=None, style="Négyzet", crop_shape="Kör
     if center_img:
         qr_w = qr_img.width
         diameter = int(qr_w * 0.40)
-        border = int(qr_w * 0.03)
-
+        border = int(qr_w * float(border_size)/100.0)
+    
         if crop_shape == "Kör crop":
             avatar_img = make_circle_avatar_with_inner_border(center_img, diameter, border)
         elif crop_shape == "Négyzet crop":
