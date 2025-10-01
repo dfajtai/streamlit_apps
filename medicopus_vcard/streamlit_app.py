@@ -201,7 +201,7 @@ corner_radius = 0
 if img_choice != "Kép nélkül":
     crop_shape = st.radio("Crop forma választás:", ["Kör crop", "Négyzet crop"])
     if crop_shape == "Négyzet crop":
-        corner_radius = st.slider("Sarok lekerekítése (pixelben)", min_value=5, max_value=200, value=5, step=5)
+        corner_radius = st.slider("Sarok lekerekítése (pixelben)", min_value=0, max_value=200, value=15, step=5)
     border_size = st.slider("Belső keret vastagsága (%)", min_value=0, max_value=10, value=3)
 else:
     border_size = 0
