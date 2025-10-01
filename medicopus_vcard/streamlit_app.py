@@ -149,6 +149,29 @@ fields = [
 
 st.title("Medicopus vCarc 3.0 generátor")
 
+with st.sidebar.expander("Help / Súgó"):
+    st.markdown("""
+### Használati útmutató
+
+Ez az alkalmazás QR-kódos névjegykártyát készít, amelyből vCard adat generálódik.
+
+**Főbb funkciók:**  
+- Adatok megadása és validálása (név, email, telefon, cím stb.)  
+- QR-kód stílus és elrendezés választása  
+- Kép vagy logó feltöltése, kör vagy lekerekített négyzet formában
+- Állítható a keret vastagság, transzpanens képek háttere
+- Profilkép forgatható (-90°, 0°, 90°)  
+- Négyzet crop esetén állítható sarok lekerekítés 
+
+**Tippek:**  
+- A szelfi kamera feltöltése nem támogatott, ezért előzetesen készítsd el a képet!  
+- A crop képarány 1:1, így a képet ehhez érdemes igazítani.  
+- A kép kerete csak a végleges QR képben látható, a szerkesztőben nem feltétlen.
+
+Használd szabadon, az elkészült névjegyek PNG vagy vCard formátumban tölthetők le.
+
+""")
+
 # Aktiválható mezők kiválasztó oldalsáv
 active_fields = {}
 with st.sidebar:
