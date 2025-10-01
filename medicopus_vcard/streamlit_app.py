@@ -69,6 +69,45 @@ def make_circle_avatar_with_inner_border(img, diameter, border):
     final_img.paste(circle_img, (border, border), mask=inner_mask)
     return final_img
 
+def make_square_avatar_with_inner_border(img, diameter, border, corner_radius=0):
+    """
+    Négyzet alakú avatar belső kerettel és opcionális lekerekített sarkokkal.
+    - img: input kép (PIL Image)
+    - diameter: a kész kép kívánt külső mérete (szélesség és magasság)
+    - border: a belső fehér keret vastagsága pixelben
+    - corner_radius: a sarkok lekerekítési sugara pixelben (0 = éles sarkok)
+    """
+    img_size = diameter - 2 * border
+    img_cropped = img.resize((img_size, img_size))
+
+
+    # Maszk lekerekített négyzethez
+    mask = Image.new("L", (img_size, img_size), 0)
+    draw = ImageDraw.Draw(mask)
+    if corner_radius > 0:
+        draw.rounded_rectangle((0, 0, img_size, img_size), radius=corner_radius, fill=255)
+    else:
+        draw.rectangle((0, 0, img_size, img_size), fill=255)
+
+
+    # Körbe vágott vagy lekerekített kép
+    square_img = Image.new("RGBA", (img_size, img_size), (0, 0, 0, 0))
+    square_img.paste(img_cropped, (0, 0), mask=mask)
+
+
+    # Border + kép kompozíció (fehér háttér, lekerekített sarokkal, ha corner_radius > 0)
+    final_img = Image.new("RGBA", (diameter, diameter), (0, 0, 0, 0))
+    draw_final = ImageDraw.Draw(final_img)
+    if corner_radius > 0:
+        draw_final.rounded_rectangle((0, 0, diameter, diameter), radius=corner_radius, fill=(255, 255, 255, 255))
+    else:
+        draw_final.rectangle((0, 0, diameter, diameter), fill=(255, 255, 255, 255))
+
+
+    final_img.paste(square_img, (border, border), mask=mask)
+    return final_img
+
+
 # Fejlett szöveg rajzoló fix magassággal és sorok közti távolsággal
 def draw_multiline_text_fixed_height(text_lines, width, height, font, line_spacing=12, text_color=(0, 0, 0)):
     text_img = Image.new("RGBA", (width, height), (255, 255, 255, 255))
@@ -132,18 +171,51 @@ st.header("Profilkép opció")
 img_choice = st.radio("Profilkép vagy logó választás:", ["Kép nélkül", "Logó használata", "Saját kép feltöltése"])
 
 cropped_img = None
+
+crop_shape = None
+corner_radius = 0
+
+if img_choice != "Kép nélkül":
+    crop_shape = st.radio("Crop forma választás:", ["Kör crop", "Négyzet crop"])
+    if crop_shape == "Négyzet crop":
+        corner_radius = st.slider("Sarok lekerekítése (pixelben)", min_value=5, max_value=200, value=5, step=5)
+
+
 if img_choice == "Saját kép feltöltése":
     uploaded_file = st.file_uploader("Válassz egy profilképet", type=["jpg", "jpeg", "png"])
     if uploaded_file:
         img = Image.open(uploaded_file)
-        cropped_img = st_cropper(img, aspect_ratio=[1.0,1.0], return_type="image", box_color='blue')
-        st.image(cropped_img, caption='Kivágott kép', width = 200)
+        cropped_img = st_cropper(img, aspect_ratio=[1.0, 1.0], return_type="image", box_color='blue')
+        
+        if crop_shape == "Kör crop":
+            # Kör crop: ez nem méretezi át korábban, csak itt a QR középen lesz körvágva
+            pass
+        elif crop_shape == "Négyzet crop":
+            cropped_img = make_square_avatar_with_inner_border(cropped_img, max(cropped_img.size), border=5, corner_radius=corner_radius)
+        st.image(cropped_img, caption='Kivágott kép', width=200)
+
 elif img_choice == "Logó használata":
     if company_logo:
         cropped_img = company_logo
-        st.image(company_logo, caption="Cég logója", width = 200)
+        if crop_shape == "Négyzet crop":
+            cropped_img = make_square_avatar_with_inner_border(cropped_img, max(cropped_img.size), border=5, corner_radius=corner_radius)
+        st.image(cropped_img, caption="Cég logója", width=200)
     else:
         st.warning("A cég logó nem található vagy nincs feltöltve.")
+
+
+# QR generáláskor a center_img paraméterhez a crop shape szerint kell avatar készítést használni:
+def prepare_center_img_for_qr(img, qr_width, crop_shape, corner_radius=0):
+    diameter = int(qr_width * 0.40)
+    border = int(qr_width * 0.03)
+    if crop_shape == "Kör crop":
+        return make_circle_avatar_with_inner_border(img, diameter, border)
+    elif crop_shape == "Négyzet crop":
+        # Négyzet alakú, lekerekített sarkokkal a qr középen
+        return make_square_avatar_with_inner_border(img, diameter, border, corner_radius)
+    else:
+        return None
+
 
 # Hátterszín választó
 bg_color = st.color_picker("Válassz hátterszínt a fényképhez", "#FFFFFF")
@@ -183,8 +255,8 @@ if cropped_img:
 
 design = st.radio("Válaszd ki a dizájnt!", [
     "Csak QR",
-    "QR, közepén körkép",
-    "QR, középen körkép, felül adatok"
+    "QR, középen logó/kép",
+    "QR, középen logó/kép, felül adatok"
 ])
 
 def build_vcard(fields, img_format = "JPEG"):
@@ -205,7 +277,7 @@ def build_vcard(fields, img_format = "JPEG"):
 
 vcard_str = build_vcard(fields)
 
-def generate_qr_styled(data, center_img=None, style="Négyzet"):
+def generate_qr_styled(data, center_img=None, style="Négyzet", crop_shape="Kör crop", corner_radius=0):
     style_map = {
         "Négyzet": SquareModuleDrawer(),
         "Kör": CircleModuleDrawer(),
@@ -213,7 +285,7 @@ def generate_qr_styled(data, center_img=None, style="Négyzet"):
         "Függőleges vonal": VerticalBarsDrawer(),
         "Vízszintes vonal": HorizontalBarsDrawer()
     }
-    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, border = 4)
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, border=4)
     qr.add_data(data)
     qr.make(fit=True)
     drawer = style_map.get(style, SquareModuleDrawer())
@@ -223,10 +295,17 @@ def generate_qr_styled(data, center_img=None, style="Négyzet"):
         qr_w = qr_img.width
         diameter = int(qr_w * 0.40)
         border = int(qr_w * 0.03)
-        circle_avatar = make_circle_avatar_with_inner_border(center_img, diameter, border)
-        # QR közepére helyezés
-        center = (qr_w // 2 - diameter // 2, qr_w // 2 - diameter // 2)
-        qr_img.paste(circle_avatar, center, mask=circle_avatar.split()[3])
+
+        if crop_shape == "Kör crop":
+            avatar_img = make_circle_avatar_with_inner_border(center_img, diameter, border)
+        elif crop_shape == "Négyzet crop":
+            avatar_img = make_square_avatar_with_inner_border(center_img, diameter, border, corner_radius)
+        else:
+            avatar_img = None
+
+        if avatar_img is not None:
+            center = (qr_w // 2 - diameter // 2, qr_w // 2 - diameter // 2)
+            qr_img.paste(avatar_img, center, mask=avatar_img.split()[3])
 
     return qr_img
 
@@ -235,18 +314,18 @@ if st.button("Névjegykártya generálása"):
     if design == "Csak QR":
         qr_final = generate_qr_styled(vcard_str,style=qr_style)
         st.image(qr_final, caption="QR kód")
-    elif design == "QR, közepén körkép":
+    elif design == "QR, középen logó/kép":
         if img_choice == "Kép nélkül":
             st.error("Válassz képet vagy logót ehhez a dizájnhoz!")
         else:
-            qr_final = generate_qr_styled(vcard_str, center_img=cropped_img,style=qr_style)
+            qr_final = generate_qr_styled(vcard_str, center_img=cropped_img,style=qr_style, crop_shape=crop_shape, corner_radius=corner_radius)
             
-            st.image(qr_final, caption="QR kód kör közepén képpel")
-    elif design == "QR, középen körkép, felül adatok":
+            st.image(qr_final, caption="QR kód kör középen képpel")
+    elif design == "QR, középen logó/kép, felül adatok":
         if img_choice == "Kép nélkül":
             st.error("Válassz képet vagy logót ehhez a dizájnhoz!")
         else:
-            qr_final = generate_qr_styled(vcard_str, center_img=cropped_img, style=qr_style)    
+            qr_final = generate_qr_styled(vcard_str, center_img=cropped_img, style=qr_style,  crop_shape=crop_shape, corner_radius=corner_radius)    
 
             # Előkészítjük a szöveges blokkot
             name = active_fields.get("FN", "").strip()
