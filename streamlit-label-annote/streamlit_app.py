@@ -22,6 +22,8 @@ COLORS = {"left-label":(255,0,0),"right-label":(0,255,0)}
 st.title("Streamlit label annote")
 
 def validate_assets()->bool:
+    global LOOKUP_DF
+    
     if not os.path.exists(ASSETS_DIR):
         st.error(f"ASSETS_DIR={ASSETS_DIR} not exits.")
         return False
