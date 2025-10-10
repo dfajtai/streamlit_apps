@@ -8,6 +8,9 @@ from zipfile import ZipFile
 
 st.title("Streamlit label annote")
 
-folders = os.listdir("assets")
+try:
+    folders = os.listdir("assets")
+except Exception as ex:
+    st.info(ex)
 
 st.info(f"Folders: {','.join(folders)}")
