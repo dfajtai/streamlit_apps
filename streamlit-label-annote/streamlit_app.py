@@ -9,7 +9,7 @@ from zipfile import ZipFile
 st.title("Streamlit label annote")
 
 try:
-    folders = os.listdir("assets")
+    folders = os.listdir("streamlit-label-annote/assets")
     st.info(f"Folders: {','.join(folders)}")
     
 except Exception as ex:
