@@ -10,7 +10,8 @@ st.title("Streamlit label annote")
 
 try:
     folders = os.listdir("assets")
+    st.info(f"Folders: {','.join(folders)}")
+    
 except Exception as ex:
     st.info(ex)
 
-st.info(f"Folders: {','.join(folders)}")
