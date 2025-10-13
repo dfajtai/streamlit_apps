@@ -141,13 +141,20 @@ if disp_male != 0.0 or disp_female != 0.0:
     st.subheader("Basic Descriptive Statistics by Sex (After Displacement)")
     st.dataframe(stats_displaced)
 
-st.subheader("Height Distribution Histogram by Sex")
+st.subheader("Height Distribution Histogram by Sex (With Displacement)")
 fig_hist, ax_hist = plt.subplots()
 colors = {'male':'blue', 'female':'red'}
-bins = np.arange(140, 211, 2)  # 2 cm széles tartományok
+bins = np.arange(140, 211, 2)  # 2 cm széles bin-ek
+
 for sex in ['male', 'female']:
-    data = df[df['sex'] == sex]['height']
+    data = df[df['sex'] == sex]['height'].copy()
+    # Apply displacement
+    if sex == 'male':
+        data += disp_male
+    else:
+        data += disp_female
     ax_hist.hist(data, bins=bins, alpha=0.5, label=sex.capitalize(), color=colors[sex], edgecolor='black')
+
 ax_hist.set_xlabel("Height (cm)")
 ax_hist.set_ylabel("Count")
 ax_hist.legend()
