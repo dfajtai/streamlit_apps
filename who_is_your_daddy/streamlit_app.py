@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from fractions import Fraction
 
 # --- Load data ---
-ROOT_PATH = ""
+ROOT_PATH = "who_is_your_daddy"
 @st.cache_data
 def load_data(path="assets/magassagos.csv", age_limit = 17, min_height = 120):
     df = pd.read_csv(os.path.join(ROOT_PATH,path))
