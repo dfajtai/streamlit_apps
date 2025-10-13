@@ -108,7 +108,7 @@ def fraction_to_5_scale(x):
         return f"{val:.1f}"
 
 st.set_page_config(page_title="Who's your daddy")
-st.title("Who's your daddy - Height Analysis and Comparison App")
+st.title("Who's your daddy - a Height Analysis and Comparison App")
 
 df = load_data()
 
@@ -140,6 +140,18 @@ if disp_male != 0.0 or disp_female != 0.0:
     stats_displaced['std'] = stats_displaced['std']  # std stays same
     st.subheader("Basic Descriptive Statistics by Sex (After Displacement)")
     st.dataframe(stats_displaced)
+
+st.subheader("Height Distribution Histogram by Sex")
+fig_hist, ax_hist = plt.subplots()
+colors = {'male':'blue', 'female':'red'}
+bins = np.arange(140, 211, 2)  # 2 cm széles tartományok
+for sex in ['male', 'female']:
+    data = df[df['sex'] == sex]['height']
+    ax_hist.hist(data, bins=bins, alpha=0.5, label=sex.capitalize(), color=colors[sex], edgecolor='black')
+ax_hist.set_xlabel("Height (cm)")
+ax_hist.set_ylabel("Count")
+ax_hist.legend()
+st.pyplot(fig_hist)
 
 # 2. CDF with displacement
 cdf_results = compute_cdf(df, disp_male, disp_female)
