@@ -123,7 +123,7 @@ threshold = st.sidebar.slider("Threshold (cm)", 0.0, 20.0, 5.0, step = 0.5)
 
 # 1. Basic stats on original data (no displacement)
 st.subheader("Basic Descriptive Statistics by Sex (Original Data)")
-stats_original = df.groupby('sex')['height'].agg(['mean', 'median', 'min', 'max', 'std']).round(2).reset_index()
+stats_original = df.groupby('sex')['height'].agg(['count','mean', 'median', 'min', 'max', 'std']).round(2).reset_index()
 st.dataframe(stats_original)
 
 # 1a. Show displaced stats if displacement is not zero
