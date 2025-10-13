@@ -12,7 +12,7 @@ import os
 import streamlit as st
 import pandas as pd
 import numpy as np
-from scipy.stats import gaussian_kde
+
 import matplotlib.pyplot as plt
 from fractions import Fraction
 
@@ -25,23 +25,48 @@ def load_data(path="assets/magassagos.csv", age_limit = 17, min_height = 120):
     df = df[df["height"] >= min_height]
     return df
 
+# def compute_cdf(df, displacement_male, displacement_female):
+#     from scipy.stats import gaussian_kde
+#     df = df.copy()
+#     df.loc[df['sex'] == 'male', 'height'] += displacement_male
+#     df.loc[df['sex'] == 'female', 'height'] += displacement_female
+#     x = np.arange(140, 211, 1)
+#     cdf_results = {}
+#     for sex in ['male', 'female']:
+#         data = df[df['sex'] == sex]['height'].dropna().values
+#         if len(data) > 1:
+#             kde = gaussian_kde(data)
+#             pdf = kde(x)
+#             cdf = np.cumsum(pdf)
+#             cdf /= cdf[-1]
+#             cdf_results[sex] = (x, cdf)
+#         else:
+#             cdf_results[sex] = (x, np.zeros_like(x))
+#     return cdf_results
+
+
+
 def compute_cdf(df, displacement_male, displacement_female):
+    from sklearn.neighbors import KernelDensity
+    
     df = df.copy()
     df.loc[df['sex'] == 'male', 'height'] += displacement_male
     df.loc[df['sex'] == 'female', 'height'] += displacement_female
 
-    x = np.arange(140, 211, 1)
+    x = np.arange(140, 211, 1).reshape(-1,1)
     cdf_results = {}
+
     for sex in ['male', 'female']:
-        data = df[df['sex'] == sex]['height'].dropna().values
+        data = df[df['sex'] == sex]['height'].dropna().values.reshape(-1,1)
         if len(data) > 1:
-            kde = gaussian_kde(data)
-            pdf = kde(x)
+            kde = KernelDensity(kernel='gaussian', bandwidth=1.0).fit(data)
+            log_pdf = kde.score_samples(x)
+            pdf = np.exp(log_pdf)
             cdf = np.cumsum(pdf)
             cdf /= cdf[-1]
-            cdf_results[sex] = (x, cdf)
+            cdf_results[sex] = (x.flatten(), cdf)
         else:
-            cdf_results[sex] = (x, np.zeros_like(x))
+            cdf_results[sex] = (x.flatten(), np.zeros_like(x.flatten()))
     return cdf_results
 
 def percentile_table(cdf_results, percentiles=[1,3,10,25,50,75,90,95,99]):

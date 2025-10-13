@@ -1,5 +1,6 @@
 streamlit
-streamlit-drawable-canvas
-pillow
 pandas
-
+numpy
+matplotlib
+scipy
+sklearn
