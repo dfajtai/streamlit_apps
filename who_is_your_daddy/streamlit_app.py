@@ -79,11 +79,12 @@ def percentile_table(cdf_results, percentiles=[1,3,10,25,50,75,90,95,99]):
         tables[sex] = table
     return tables
 
-def height_comparison_from_cdf(cdf_results, height_value, threshold, selected_sex, total_count=1):
+def height_comparison_from_cdf(df, cdf_results, height_value, threshold, selected_sex):
     """
     Compare given height to CDF data with threshold.
     
     Args:
+        df (pd.DataFrame): dataframe
         cdf_results (dict): {'male': (x_vals, cdf_vals), 'female': (x_vals, cdf_vals)}
         height_value (float): magasság cm-ben
         threshold (float): ± érték, amin belül 'hasónló'
@@ -95,7 +96,8 @@ def height_comparison_from_cdf(cdf_results, height_value, threshold, selected_se
         percentages (dict): arányok 0..1 között
     """
     x, cdf = cdf_results[selected_sex]
-    # biztosítjuk, hogy indexek érvényesek
+    nrow = df["sex"].apply(lambda x: x=="male").sum()
+
     low_bound = height_value - threshold
     high_bound = height_value + threshold
 
@@ -112,16 +114,16 @@ def height_comparison_from_cdf(cdf_results, height_value, threshold, selected_se
         similar_fraction = 0.0
 
     counts = {
-        'lower': lower_fraction * total_count,
-        'similar': similar_fraction * total_count,
-        'higher': higher_fraction * total_count,
+        'lower': int(lower_fraction * nrow),
+        'similar': int(similar_fraction * nrow),
+        'higher': int(higher_fraction * nrow),
     }
     percentages = {
         'lower': lower_fraction,
         'similar': similar_fraction,
         'higher': higher_fraction
     }
-    return counts, percentages
+    return counts, percentages, nrow
 
 def pretty_fraction(x, max_denominator=100):
     frac = Fraction(x).limit_denominator(max_denominator)
@@ -213,7 +215,7 @@ for sex in ['male', 'female']:
     st.table(df_p)
 
 # 4. Height comparison for user inputs
-counts, percentages = height_comparison_from_cdf(cdf_results= cdf_results, 
+counts, percentages, total = height_comparison_from_cdf(cdf_results= cdf_results, 
                                                  height_value=your_height,
                                                  threshold=threshold, 
                                                  selected_sex=selected_sex, 
