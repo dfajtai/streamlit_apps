@@ -220,7 +220,7 @@ counts, percentages, total = height_comparison_from_cdf(df = df,
                                                         height_value=your_height,
                                                         threshold=threshold, 
                                                         selected_sex=selected_sex, 
-                                                        total_count=len(df))
+                                                        )
 
 frac_lower = pretty_fraction(percentages['lower'])
 frac_similar = pretty_fraction(percentages['similar'])
