@@ -147,6 +147,7 @@ fields = [
     {"label": "GPS koordináták (latitúdó; hosszúság)", "key": "GEO", "valid": r'^-?\d+(\.\d+)?;-?\d+(\.\d+)?$', "enabled": True, "default": "46.381597197125714;17.82524855165998"},
 ]
 
+st.set_page_config(page_title="Medicopus vCard")
 st.title("Medicopus vCarc 3.0 generátor")
 
 with st.sidebar.expander("Help / Súgó"):
