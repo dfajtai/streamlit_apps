@@ -215,11 +215,12 @@ for sex in ['male', 'female']:
     st.table(df_p)
 
 # 4. Height comparison for user inputs
-counts, percentages, total = height_comparison_from_cdf(cdf_results= cdf_results, 
-                                                 height_value=your_height,
-                                                 threshold=threshold, 
-                                                 selected_sex=selected_sex, 
-                                                 total_count=len(df))
+counts, percentages, total = height_comparison_from_cdf(df = df,
+                                                        cdf_results= cdf_results, 
+                                                        height_value=your_height,
+                                                        threshold=threshold, 
+                                                        selected_sex=selected_sex, 
+                                                        total_count=len(df))
 
 frac_lower = pretty_fraction(percentages['lower'])
 frac_similar = pretty_fraction(percentages['similar'])
