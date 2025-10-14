@@ -114,9 +114,9 @@ def height_comparison_from_cdf(df, cdf_results, height_value, threshold, selecte
         similar_fraction = 0.0
 
     counts = {
-        'lower': int(lower_fraction * nrow),
-        'similar': int(similar_fraction * nrow),
-        'higher': int(higher_fraction * nrow),
+        'lower': np.ceil(lower_fraction * nrow),
+        'similar': np.ceil(similar_fraction * nrow),
+        'higher': np.ceil(higher_fraction * nrow),
     }
     percentages = {
         'lower': lower_fraction,
