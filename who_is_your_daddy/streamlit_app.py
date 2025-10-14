@@ -226,7 +226,7 @@ frac_lower = pretty_fraction(percentages['lower'])
 frac_similar = pretty_fraction(percentages['similar'])
 frac_higher = pretty_fraction(percentages['higher'])
 
-st.subheader(f"CDF based Height Comparison for your height: {your_height} cm ({selected_sex.capitalize()[0]})")
+st.subheader(f"CDF Based Height Comparison: {your_height} cm ({selected_sex.capitalize()[0]})")
 
 table_data = {
     "Category": ["Shorter", "Similar Height", "Taller"],
