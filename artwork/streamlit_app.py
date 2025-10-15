@@ -175,63 +175,6 @@ def place_crop_on_page(page_img, crop: Crop):
     return composed
 
 
-def draw_title_on_image(
-    image,
-    title,
-    font_path,
-    font_size,
-    margin_ratio=0.03,
-    stroke_width=2,
-    with_underline=True,
-    bg_color=(255, 255, 255, 255)  # fehér háttér
-):
-    if not title.strip():
-        return image
-
-    img = image.copy()
-    draw = ImageDraw.Draw(img)
-
-    margin = int(image.height * margin_ratio)
-
-    # Font betöltése a kívánt méret alapján
-    font = load_custom_font(font_path, font_size)
-
-    bbox = draw.textbbox((0, 0), title, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-
-    # Fehér háttérsáv a teljes szélességben a szöveg magasságával és margóval
-    bg_rect_height = text_height + 2 * margin
-    bg_rect = Image.new("RGBA", (image.width, bg_rect_height), bg_color)
-    img.paste(bg_rect, (0, 0))
-
-    # Szöveg pozíció (középre)
-    x = (image.width - text_width) // 2
-    y = margin
-
-    # Szöveg stroke-tal
-    draw.text(
-        (x, y),
-        title,
-        font=font,
-        fill=(0, 0, 0, 255),
-        stroke_width=stroke_width,
-        stroke_fill=(0, 0, 0, 255)
-    )
-
-    # Vonal a szöveg alatt, a teljes szélességben
-    if with_underline:
-        line_y = bg_rect_height - (stroke_width // 2)  # a bg_rect aljánál
-        line_thickness = max(1, stroke_width)
-        draw.line(
-            [(0, line_y), (image.width, line_y)],
-            fill=(0, 0, 0, 255),
-            width=line_thickness
-        )
-
-    return img
-
-
 def export_image_to_png(img: Image.Image, dpi: int) -> bytes:
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format='PNG', dpi=(dpi, dpi))
@@ -584,6 +527,9 @@ def add_title_and_qr_code(
         stroke_width=stroke_width,
         stroke_fill=(0, 0, 0, 255),
     )
+
+    st.sidebar.info(font.size)
+
     if with_underline:
         line_y = y + title_height + margin // 2
         line_thickness = max(1, stroke_width)
