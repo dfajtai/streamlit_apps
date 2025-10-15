@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import io
 
 ROOT_FOLDER = "artwork"
-ROOT_FOLDER = ""
+# ROOT_FOLDER = ""
 
 
 # --- DATA CLASS ---
