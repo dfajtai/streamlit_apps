@@ -572,18 +572,6 @@ def app():
 
     input_dpi = st.sidebar.number_input("Input DPI", 72, 600, 150, 1)
     output_dpi = st.sidebar.number_input("Output DPI", 72, 1200, 300, 1)
-
-    st.sidebar.info(
-        """
-        DPI guideline:
-        - 72 DPI: Web, screen view
-        - 150 DPI: Office printing
-        - 300 DPI: Professional print quality
-        - 600 DPI+: High-resolution
-        
-        Changing this value on-fligt can ruin your work.
-        """
-        )
     
     # Ellenőrzés, hogy új PDF vagy input DPI változás történt-e
     if ('pdf_name' not in st.session_state) or (st.session_state['pdf_name'] != pdf_file.name) or (st.session_state.get('input_dpi') != input_dpi):
@@ -607,6 +595,18 @@ def app():
 
     st.session_state['page_height_px'] = page_height_px
     scaled_page_img = scale_image(page_img, *page_size_px)
+
+    st.sidebar.info(
+        """
+        DPI guideline:
+        - 72 DPI: Web, screen view
+        - 150 DPI: Office printing
+        - 300 DPI: Professional print quality
+        - 600 DPI+: High-resolution
+        
+        WARNING: Changing these values on-fligt can ruin your work.
+        """
+        )
 
     st.sidebar.divider()
 
