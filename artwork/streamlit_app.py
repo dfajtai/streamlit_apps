@@ -81,7 +81,7 @@ def load_custom_font(font_path: str, font_size: int):
         print(f"✅ Loaded custom font from {font_path}")
     except Exception as e:
         print(f"⚠️ Could not load custom font '{font_path}': {e}")
-        font = ImageFont.load_default()
+        font = ImageFont.load_default(size=font_size)
     return font
 
 
@@ -611,7 +611,7 @@ def app():
     # --- Add title and QR last ---
     title_text = st.sidebar.text_input("Optional Title", "")
     
-    f_min, f_max, f_def, f_step = adjust_vals(12, 72, 1, 24,min_ratio=0.01,max_ratio=0.05)
+    f_min, f_max, f_def, f_step = adjust_vals(12, 72, 24, 1, min_ratio=0.01,max_ratio=0.05)
     font_size_pt = st.sidebar.slider("Title Font Size (pt)", f_min, f_max,  f_def, f_step)
     
     font_path = "assets/montserrat.ttf"
