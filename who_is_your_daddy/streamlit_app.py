@@ -156,27 +156,29 @@ st.set_page_config(page_title="Who's your daddy")
 st.title("Who's your daddy - a Height Analysis and Comparison App")
 
 
-
-
-# -- Sidebar: Sample selection --
 with st.sidebar.expander("Sample Selection", expanded=False):
     sample_choice = st.radio(
         "Which sample to use?",
         options=["Small sample (~9,400)", "Big sample (bootstrapped)"],
         index=0
     )
+
     if sample_choice == "Big sample (bootstrapped)":
         bootstrap_n = st.slider(
             "Number of samples (bootstrapped rows)", 
             min_value=5000, 
             max_value=20000, 
-            value=10000, 
+            value=14000, 
             step=1000
         )
+        col1, col2 = st.columns(2)
+        with col1:
+            load_action = st.button("Load sample")
+        with col2:
+            reload_action = st.button("Reload sample")
     else:
         bootstrap_n = None
-    load_action = st.button("Load sample")
-    reload_action = st.button("Reload sample")
+        load_action = reload_action = False
 
 # --- Select file path and bootstrap settings based on choice ---
 if sample_choice == "Small sample (~9,400)":
@@ -186,15 +188,14 @@ else:
     sample_path = "assets/big_sample.csv"
     use_bootstrap = True
 
-# --- (Re-)Load Data: reacts to button presses or first app launch ---
+# --- (Re-)Load Data ---
 if "df" not in st.session_state or load_action or reload_action:
     st.session_state.df = load_data_new(
-        sample_path, 
+        sample_path,
         use_bootstrap=use_bootstrap,
         bootstrap_n=bootstrap_n if use_bootstrap else None
     )
 
-# Use st.session_state.df as your working DataFrame in the rest of your app
 df = st.session_state.df
 
 st.sidebar.header("Displacement Correction Settings")
