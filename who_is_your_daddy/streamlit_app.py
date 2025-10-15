@@ -18,7 +18,7 @@ from fractions import Fraction
 
 # --- Load data ---
 ROOT_PATH = "who_is_your_daddy"
-ROOT_PATH = ""
+# ROOT_PATH = ""
 
 sample_path = "assets/small_sample.csv"
 
