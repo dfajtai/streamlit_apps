@@ -59,14 +59,14 @@ def load_data_new(data_path, use_bootstrap=False, bootstrap_n=14000, seed=42, ag
 
 
 
-def compute_cdf(df, displacement_male, displacement_female):
+def compute_cdf(df, displacement_male, displacement_female,cdf_step = 0.5):
     from sklearn.neighbors import KernelDensity
     
     df = df.copy()
     df.loc[df['sex'] == 'male', 'height'] += displacement_male
     df.loc[df['sex'] == 'female', 'height'] += displacement_female
 
-    x = np.arange(140, 211, 1).reshape(-1,1)
+    x = np.arange(140, 211, cdf_step).reshape(-1,1)
     cdf_results = {}
 
     for sex in ['male', 'female']:
@@ -92,19 +92,51 @@ def percentile_table(cdf_results, percentiles=[1,3,10,25,50,75,90,95,99]):
         tables[sex] = table
     return tables
 
-def height_comparison(df, height_value, threshold, selected_sex):
-    df = df[df['sex'] == selected_sex]
-    counts = {'lower':0, 'similar':0, 'higher':0}
-    for h in df['height']:
-        if h < height_value - threshold:
-            counts['lower'] += 1
-        elif h > height_value + threshold:
-            counts['higher'] += 1
-        else:
-            counts['similar'] += 1
-    total = len(df)
-    percentages = {k: v / total if total > 0 else 0 for k, v in counts.items()}
-    return counts, percentages
+def height_comparison_from_cdf(df, cdf_results, height_value, threshold, selected_sex):
+    """
+    Compare given height to CDF data with threshold.
+    
+    Args:
+        df (pd.DataFrame): dataframe
+        cdf_results (dict): {'male': (x_vals, cdf_vals), 'female': (x_vals, cdf_vals)}
+        height_value (float): magasság cm-ben
+        threshold (float): ± érték, amin belül 'hasónló'
+        selected_sex (str): 'male' vagy 'female'
+        total_count (float): az elemszám, amire az arányokat vissza kell vetíteni (pl. a csoport elemszáma)
+        
+    Returns:
+        counts (dict): {'lower', 'similar', 'higher'} elemszám becslés (összes elemszám total_count)
+        percentages (dict): arányok 0..1 között
+    """
+    x, cdf = cdf_results[selected_sex]
+    nrow = df["sex"].apply(lambda x: x=="male").sum()
+
+    low_bound = height_value - threshold
+    high_bound = height_value + threshold
+
+    idx_low = np.searchsorted(x, low_bound, side='right') - 1
+    idx_high = np.searchsorted(x, high_bound, side='right') - 1
+
+    idx_low = max(0, min(idx_low, len(cdf)-1))
+    idx_high = max(0, min(idx_high, len(cdf)-1))
+
+    lower_fraction = cdf[idx_low] if idx_low >= 0 else 0.0
+    higher_fraction = 1.0 - cdf[idx_high] if idx_high >= 0 else 0.0
+    similar_fraction = 1.0 - lower_fraction - higher_fraction
+    if similar_fraction < 0:
+        similar_fraction = 0.0
+
+    counts = {
+        'lower': int(np.ceil(lower_fraction * nrow)),
+        'similar': int(np.ceil(similar_fraction * nrow)),
+        'higher': int(np.ceil(higher_fraction * nrow))
+    }
+    percentages = {
+        'lower': lower_fraction,
+        'similar': similar_fraction,
+        'higher': higher_fraction
+    }
+    return counts, percentages, nrow
 
 def pretty_fraction(x, max_denominator=100):
     frac = Fraction(x).limit_denominator(max_denominator)
@@ -236,13 +268,18 @@ for sex in ['male', 'female']:
     st.table(df_p)
 
 # 4. Height comparison for user inputs
-counts, percentages = height_comparison(df, your_height, threshold, selected_sex)
+counts, percentages, total = height_comparison_from_cdf(df = df,
+                                                        cdf_results= cdf_results, 
+                                                        height_value=your_height,
+                                                        threshold=threshold, 
+                                                        selected_sex=selected_sex, 
+                                                        )
 
 frac_lower = pretty_fraction(percentages['lower'])
 frac_similar = pretty_fraction(percentages['similar'])
 frac_higher = pretty_fraction(percentages['higher'])
 
-st.subheader(f"Height Comparison for your height: {your_height} cm ({selected_sex.capitalize()})")
+st.subheader(f"CDF Based Height Comparison: {your_height} cm ({selected_sex.capitalize()[0]})")
 
 table_data = {
     "Category": ["Shorter", "Similar Height", "Taller"],
