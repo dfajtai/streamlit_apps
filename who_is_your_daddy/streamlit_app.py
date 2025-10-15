@@ -14,14 +14,17 @@ import pandas as pd
 import numpy as np
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from fractions import Fraction
 
 # --- Load data ---
 ROOT_PATH = "who_is_your_daddy"
-# ROOT_PATH = ""
+ROOT_PATH = ""
 
 sample_path = "assets/small_sample.csv"
 
+cdf_min = 135.0
+cdf_max = 220.0
 
 @st.cache_data
 def load_data(data_path, age_limit = 17, min_height = 120):
@@ -32,19 +35,20 @@ def load_data(data_path, age_limit = 17, min_height = 120):
     return df
 
 # --- Load data with bootstrap for big sample ---
-def load_data_new(data_path, use_bootstrap=False, bootstrap_n=None, seed=42, age_limit=17, min_height=120):
+def load_data_new(data_path, use_bootstrap=False, bootstrap_n=None, seed=42, age_limit=17, min_height=120, max_height = 250):
     df_path = os.path.join(ROOT_PATH,data_path)
     df = pd.read_csv(df_path)
 
     df = df[df["age"] >= age_limit]
     if df["height"].apply(lambda x: x<min_height).all():
-        df["height"]*=100.0
-    df = df[df["height"] >= min_height]
+        df["height"] =df["height"].apply(lambda x: x * 100.0)
+
+    df = df[(df["height"] >= min_height) & (df["height"] <= max_height)]
     if use_bootstrap and isinstance(bootstrap_n, int) and bootstrap_n > 0:
-        print(len(df))
         # The size must not exceed the actual DataFrame unless sampling with replacement
         # Here, .sample(..., replace=True) can handle bootstrap_n > len(df)
-        df = df.sample(n=bootstrap_n, replace=True, random_state=seed).reset_index(drop=True)
+        df = df.sample(n=bootstrap_n, replace=True, random_state=seed, ignore_index=True).reset_index(drop=True)
+        # print(df.describe())
     return df
 
 # def compute_cdf(df, displacement_male, displacement_female):
@@ -52,7 +56,7 @@ def load_data_new(data_path, use_bootstrap=False, bootstrap_n=None, seed=42, age
 #     df = df.copy()
 #     df.loc[df['sex'] == 'male', 'height'] += displacement_male
 #     df.loc[df['sex'] == 'female', 'height'] += displacement_female
-#     x = np.arange(140, 211, 1)
+#     x = np.arange(cdf_min, 211, 1)
 #     cdf_results = {}
 #     for sex in ['male', 'female']:
 #         data = df[df['sex'] == sex]['height'].dropna().values
@@ -68,14 +72,14 @@ def load_data_new(data_path, use_bootstrap=False, bootstrap_n=None, seed=42, age
 
 
 
-def compute_cdf(df, displacement_male, displacement_female,cdf_step = 0.5):
+def compute_cdf(df, displacement_male, displacement_female, cdf_step = 0.5):
     from sklearn.neighbors import KernelDensity
     
     df = df.copy()
     df.loc[df['sex'] == 'male', 'height'] += displacement_male
     df.loc[df['sex'] == 'female', 'height'] += displacement_female
 
-    x = np.arange(140, 211, cdf_step).reshape(-1,1)
+    x = np.arange(cdf_min, cdf_max+1, cdf_step).reshape(-1,1)
     cdf_results = {}
 
     for sex in ['male', 'female']:
@@ -214,7 +218,9 @@ if "df" not in st.session_state or load_action or reload_action:
         sample_path,
         use_bootstrap=use_bootstrap,
         bootstrap_n=bootstrap_n if use_bootstrap else None,
-        seed=st.session_state.random_seed
+        seed=st.session_state.random_seed,
+        min_height=cdf_min,
+        max_height=cdf_max
     )
 
 df = st.session_state.df
@@ -225,7 +231,7 @@ disp_female = st.sidebar.slider("Female Height Displacement (cm)", -10.0, 10.0, 
 
 st.sidebar.header("Comparison Settings")
 selected_sex = st.sidebar.selectbox("Select your sex for comparison", options=["male", "female"])
-your_height = st.sidebar.slider("Your Height (cm)", 140.0, 210.0, 170.0, step = 0.5)
+your_height = st.sidebar.slider("Your Height (cm)", cdf_min, cdf_max, 170.0, step = 0.5)
 threshold = st.sidebar.slider("Threshold (cm)", 0.0, 20.0, 5.0, step = 0.5)
 
 # 1. Basic stats on original data (no displacement)
@@ -251,7 +257,7 @@ if disp_male != 0.0 or disp_female != 0.0:
 st.subheader("Height Distribution Histogram by Sex (With Displacement)")
 fig_hist, ax_hist = plt.subplots()
 colors = {'male':'blue', 'female':'red'}
-bins = np.arange(140, 211, 2)  # 2 cm széles bin-ek
+bins = np.arange(cdf_min, cdf_max+1, 2)  # 2 cm széles bin-ek
 
 for sex in ['male', 'female']:
     data = df[df['sex'] == sex]['height'].copy()
@@ -262,8 +268,57 @@ for sex in ['male', 'female']:
         data += disp_female
     ax_hist.hist(data, bins=bins, alpha=0.5, label=sex.capitalize(), color=colors[sex], edgecolor='black')
 
+# Set major ticks every 10 cm
+ax_hist.xaxis.set_major_locator(ticker.MultipleLocator(10))
+
+# Set minor ticks every 5 cm
+ax_hist.xaxis.set_minor_locator(ticker.MultipleLocator(5))
+
+# Optionally, enable grid for major and minor ticks
+# Major grid lines: vertical only, lighter opacity
+ax_hist.grid(which='major', axis='x', linestyle='-', linewidth=0.5, color='gray', alpha=0.3)
+
+# Minor grid lines: vertical only, dashed and even lighter
+ax_hist.grid(which='minor', axis='x', linestyle='--', linewidth=0.3, color='gray', alpha=0.3)
+
 ax_hist.set_xlabel("Height (cm)")
 ax_hist.set_ylabel("Count")
+
+# --- DRAW VERTICAL LINE AND LABEL ---
+
+# Get current y-axis limits
+y_min, y_max = ax_hist.get_ylim()
+
+# Increase upper y-limit by 20% for substantial room
+y_new_max = y_max * 1.1
+ax_hist.set_ylim(y_min, y_new_max)
+
+# Determine color based on selected sex
+line_color = 'blue' if selected_sex == 'male' else 'red'
+
+# Draw vertical dashed line at your_height, spanning up to original y_max
+ax_hist.vlines(
+    x=your_height, ymin=y_min, ymax=y_max,
+    colors=line_color, linestyles='dashed', linewidth=2
+)
+
+# Place rotated label at the top inside the diagram, well above the tallest bar
+label_y_pos = y_max   # halfway into the extra headroom
+
+ax_hist.text(
+    your_height,                # small left offset
+    label_y_pos,                      # higher up, inside the diagram
+    "Your height",
+    color=line_color,
+    rotation=0,
+    verticalalignment='bottom',       # bottom of text at this y
+    horizontalalignment='center',
+    fontsize=7,                       # smaller font for fit
+    fontweight='normal',
+    bbox=dict(boxstyle="round", ec="black", fc="white", alpha=0.7)
+)
+
+
 ax_hist.legend()
 st.pyplot(fig_hist)
 
