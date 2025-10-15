@@ -632,6 +632,7 @@ def app():
         - 150 DPI: Office printing
         - 300 DPI: Professional print quality
         - 600 DPI+: High-resolution
+        
         Changing this value on-fligt can ruin your work.
         """
         )
@@ -671,13 +672,13 @@ def app():
 
     
     stroke_width = st.sidebar.slider("Title Stroke Width", 1, 10, 1, 1)
-    with_underline = st.sidebar.checkbox("Underline Title", value=True)
+    with_underline = st.sidebar.checkbox("Underline Title", value=False)
 
     st.sidebar.divider()
 
 
     qr_text = st.sidebar.text_area("QR Code Text (max 200 chars)", max_chars=200)
-    qr_position = st.sidebar.selectbox("QR Code position", ["top-left", "top-right", "bottom-left", "bottom-right"])
+    qr_position = st.sidebar.selectbox("QR Code position", ["top-left", "top-right", "bottom-left", "bottom-right"], index = 1)
 
     qr_min, qr_max, qr_default, qr_step = adjust_vals(100, 500, 200, 25)
     qr_size = st.sidebar.slider("QR Code size",qr_min, qr_max, qr_default, qr_step)
