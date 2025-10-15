@@ -76,7 +76,7 @@ class PageSelector:
 # --- UTILS ---
 
 def load_custom_font(font_path: str, font_size: int):
-    
+    font_path = os.path.join(ROOT_FOLDER,"assets",font_path)
     try:
         font = ImageFont.truetype(font_path, font_size)
         success = True
@@ -561,7 +561,7 @@ def app():
     st.title("Artwork - an article preview creator")
 
     if 'font' not in st.session_state:
-        font_path = os.path.join(ROOT_FOLDER, "assets/montserrat.ttf")
+        font_path = "montserrat.ttf"
         font_size_default = 24
         st.session_state['font'], success = load_custom_font(font_path, font_size_default)
         if not success:
@@ -618,7 +618,7 @@ def app():
     f_min, f_max, f_def, f_step = adjust_vals(12, 72, 24, 1, min_ratio=0.01,max_ratio=0.05)
     font_size_pt = st.sidebar.slider("Title Font Size (pt)", f_min, f_max,  f_def, f_step)
     
-    font_path = "assets/montserrat.ttf"
+    font_path = "montserrat.ttf"
 
     
     stroke_width = st.sidebar.slider("Title Stroke Width", 1, 10, 1, 1)
