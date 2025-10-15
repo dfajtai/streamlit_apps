@@ -18,26 +18,33 @@ from fractions import Fraction
 
 # --- Load data ---
 ROOT_PATH = "who_is_your_daddy"
+ROOT_PATH = ""
 
 sample_path = "assets/small_sample.csv"
 
+
 @st.cache_data
 def load_data(data_path, age_limit = 17, min_height = 120):
-    df = pd.read_csv(os.path.join(ROOT_PATH,data_path))
+    df_path = os.path.join(ROOT_PATH,data_path)
+    df = pd.read_csv(df_path)
     df = df[df["age"]>=age_limit]
     df = df[df["height"] >= min_height]
     return df
 
 # --- Load data with bootstrap for big sample ---
 def load_data_new(data_path, use_bootstrap=False, bootstrap_n=None, seed=42, age_limit=17, min_height=120):
-    df = pd.read_csv(os.path.join(ROOT_PATH, data_path))
+    df_path = os.path.join(ROOT_PATH,data_path)
+    df = pd.read_csv(df_path)
+
     df = df[df["age"] >= age_limit]
+    if df["height"].apply(lambda x: x<min_height).all():
+        df["height"]*=100.0
     df = df[df["height"] >= min_height]
     if use_bootstrap and isinstance(bootstrap_n, int) and bootstrap_n > 0:
-        np.random.seed(seed)
+        print(len(df))
         # The size must not exceed the actual DataFrame unless sampling with replacement
         # Here, .sample(..., replace=True) can handle bootstrap_n > len(df)
-        df = df.sample(n=bootstrap_n, replace=True).reset_index(drop=True)
+        df = df.sample(n=bootstrap_n, replace=True, random_state=seed).reset_index(drop=True)
     return df
 
 # def compute_cdf(df, displacement_male, displacement_female):
@@ -161,11 +168,11 @@ st.title("Who's your daddy - a Height Analysis and Comparison App")
 with st.sidebar.expander("Sample Selection", expanded=False):
     sample_choice = st.radio(
         "Which sample to use?",
-        options=["Small sample (~9,400)", "Big sample (bootstrapped)"],
+        options=["Small sample (~9.4k)", "Big sample (bootstrapped from ~40k)"],
         index=0
     )
 
-    if sample_choice == "Big sample (bootstrapped)":
+    if sample_choice == "Big sample (bootstrapped from ~40k)":
         bootstrap_n = st.slider(
             "Number of samples (bootstrapped rows)",
             min_value=5000,
@@ -183,19 +190,31 @@ with st.sidebar.expander("Sample Selection", expanded=False):
         load_action = reload_action = False
 
 # --- Select file path and bootstrap settings based on choice ---
-if sample_choice == "Small sample (~9,400)":
+if sample_choice == "Small sample (~9.4k)":
     sample_path = "assets/small_sample.csv"
     use_bootstrap = False
 else:
     sample_path = "assets/big_sample.csv"
     use_bootstrap = True
 
-# --- (Re-)Load Data ---
+if "random_seed" not in st.session_state:
+    st.session_state.random_seed = 42  # default seed for first load
+
+# When Load button pressed, seed resets to 42
+if load_action:
+    st.session_state.random_seed = 42
+
+# When Reload button pressed, seed changes to a new random number
+if reload_action:
+    st.session_state.random_seed = np.random.randint(0, 10**6)
+
+# Load or reload data using current seed in session_state
 if "df" not in st.session_state or load_action or reload_action:
     st.session_state.df = load_data_new(
         sample_path,
         use_bootstrap=use_bootstrap,
-        bootstrap_n=bootstrap_n if use_bootstrap else None
+        bootstrap_n=bootstrap_n if use_bootstrap else None,
+        seed=st.session_state.random_seed
     )
 
 df = st.session_state.df
