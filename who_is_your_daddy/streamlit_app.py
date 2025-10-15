@@ -29,12 +29,14 @@ def load_data(data_path, age_limit = 17, min_height = 120):
     return df
 
 # --- Load data with bootstrap for big sample ---
-def load_data_new(data_path, use_bootstrap=False, bootstrap_n=14000, seed=42, age_limit=17, min_height=120):
+def load_data_new(data_path, use_bootstrap=False, bootstrap_n=None, seed=42, age_limit=17, min_height=120):
     df = pd.read_csv(os.path.join(ROOT_PATH, data_path))
     df = df[df["age"] >= age_limit]
     df = df[df["height"] >= min_height]
-    if use_bootstrap:
+    if use_bootstrap and isinstance(bootstrap_n, int) and bootstrap_n > 0:
         np.random.seed(seed)
+        # The size must not exceed the actual DataFrame unless sampling with replacement
+        # Here, .sample(..., replace=True) can handle bootstrap_n > len(df)
         df = df.sample(n=bootstrap_n, replace=True).reset_index(drop=True)
     return df
 
@@ -165,17 +167,17 @@ with st.sidebar.expander("Sample Selection", expanded=False):
 
     if sample_choice == "Big sample (bootstrapped)":
         bootstrap_n = st.slider(
-            "Number of samples (bootstrapped rows)", 
-            min_value=5000, 
-            max_value=20000, 
-            value=14000, 
+            "Number of samples (bootstrapped rows)",
+            min_value=5000,
+            max_value=20000,
+            value=10000,
             step=1000
         )
         col1, col2 = st.columns(2)
         with col1:
-            load_action = st.button("Load sample")
+            load_action = st.button("Load sample", use_container_width = True)
         with col2:
-            reload_action = st.button("Reload sample")
+            reload_action = st.button("Reload sample",  use_container_width = True)
     else:
         bootstrap_n = None
         load_action = reload_action = False
