@@ -18,11 +18,24 @@ from fractions import Fraction
 
 # --- Load data ---
 ROOT_PATH = "who_is_your_daddy"
+
+sample_path = "assets/small_sample.csv"
+
 @st.cache_data
-def load_data(path="assets/magassagos.csv", age_limit = 17, min_height = 120):
-    df = pd.read_csv(os.path.join(ROOT_PATH,path))
+def load_data(data_path, age_limit = 17, min_height = 120):
+    df = pd.read_csv(os.path.join(ROOT_PATH,data_path))
     df = df[df["age"]>=age_limit]
     df = df[df["height"] >= min_height]
+    return df
+
+# --- Load data with bootstrap for big sample ---
+def load_data_new(data_path, use_bootstrap=False, bootstrap_n=14000, seed=42, age_limit=17, min_height=120):
+    df = pd.read_csv(os.path.join(ROOT_PATH, data_path))
+    df = df[df["age"] >= age_limit]
+    df = df[df["height"] >= min_height]
+    if use_bootstrap:
+        np.random.seed(seed)
+        df = df.sample(n=bootstrap_n, replace=True).reset_index(drop=True)
     return df
 
 # def compute_cdf(df, displacement_male, displacement_female):
@@ -110,7 +123,47 @@ def fraction_to_5_scale(x):
 st.set_page_config(page_title="Who's your daddy")
 st.title("Who's your daddy - a Height Analysis and Comparison App")
 
-df = load_data()
+
+
+
+# -- Sidebar: Sample selection --
+with st.sidebar.expander("Sample Selection", expanded=False):
+    sample_choice = st.radio(
+        "Which sample to use?",
+        options=["Small sample (~9,400)", "Big sample (bootstrapped)"],
+        index=0
+    )
+    if sample_choice == "Big sample (bootstrapped)":
+        bootstrap_n = st.slider(
+            "Number of samples (bootstrapped rows)", 
+            min_value=5000, 
+            max_value=20000, 
+            value=10000, 
+            step=1000
+        )
+    else:
+        bootstrap_n = None
+    load_action = st.button("Load sample")
+    reload_action = st.button("Reload sample")
+
+# --- Select file path and bootstrap settings based on choice ---
+if sample_choice == "Small sample (~9,400)":
+    sample_path = "assets/small_sample.csv"
+    use_bootstrap = False
+else:
+    sample_path = "assets/big_sample.csv"
+    use_bootstrap = True
+
+# --- (Re-)Load Data: reacts to button presses or first app launch ---
+if "df" not in st.session_state or load_action or reload_action:
+    st.session_state.df = load_data_new(
+        sample_path, 
+        use_bootstrap=use_bootstrap,
+        bootstrap_n=bootstrap_n if use_bootstrap else None
+    )
+
+# Use st.session_state.df as your working DataFrame in the rest of your app
+df = st.session_state.df
 
 st.sidebar.header("Displacement Correction Settings")
 disp_male = st.sidebar.slider("Male Height Displacement (cm)", -10.0, 10.0, 3.0, 0.1)
