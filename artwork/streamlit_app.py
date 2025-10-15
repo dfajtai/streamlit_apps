@@ -76,7 +76,7 @@ class PageSelector:
 # --- UTILS ---
 
 def load_custom_font(font_path: str, font_size: int):
-    font_path = os.path.join(ROOT_FOLDER,"assets",font_path)
+    font_path = os.path.join(ROOT_FOLDER, "assets",font_path)
     try:
         font = ImageFont.truetype(font_path, font_size)
         success = True
@@ -565,6 +565,7 @@ def app():
         font_size_default = 24
         st.session_state['font'], success = load_custom_font(font_path, font_size_default)
         if not success:
+            st.info(os.path.exists(os.path.join(ROOT_FOLDER,"assets",font_path)))
             st.warning(f"⚠️ The custom font at '{font_path}' could not be loaded. Using default font instead.")
 
     pdf_file = st.file_uploader("Upload PDF file", type=["pdf"])
