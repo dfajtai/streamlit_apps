@@ -439,7 +439,7 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
         ))
 
     st.markdown("## 🖼️ Final Composition (All Crops Placed)")
-    st.image(composed, use_column_width=True)
+    st.image(composed, use_container_width =True)
 
     if st.button("Reset all crop positions & scales"):
         for c in st.session_state['crops']:
@@ -655,7 +655,7 @@ def app():
     )
 
     st.markdown("## 🧾 Final Output with QR")
-    st.image(final_img, use_column_width=True)
+    st.image(final_img, use_container_width =True)
 
 
     # --- Export final image ---
