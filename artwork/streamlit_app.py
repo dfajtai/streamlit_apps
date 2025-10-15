@@ -76,13 +76,17 @@ class PageSelector:
 # --- UTILS ---
 
 def load_custom_font(font_path: str, font_size: int):
+    
     try:
         font = ImageFont.truetype(font_path, font_size)
+        success = True
         print(f"✅ Loaded custom font from {font_path}")
+
     except Exception as e:
         print(f"⚠️ Could not load custom font '{font_path}': {e}")
         font = ImageFont.load_default(size=font_size)
-    return font
+        success = False
+    return font, success 
 
 
 def pdf_to_images(pdf_bytes, dpi=72):
@@ -481,7 +485,7 @@ def add_title_and_qr_code(
         return img
 
     # 1. Betöltjük a fontot és kiszámoljuk a cím magasságát
-    font = load_custom_font(font_path, font_size)
+    font, success = load_custom_font(font_path, font_size)
     dummy_draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     bbox = dummy_draw.textbbox((0, 0), title_text, font=font)
     title_height = bbox[3] - bbox[1]
@@ -559,8 +563,8 @@ def app():
     if 'font' not in st.session_state:
         font_path = os.path.join(ROOT_FOLDER, "assets/montserrat.ttf")
         font_size_default = 24
-        st.session_state['font'] = load_custom_font(font_path, font_size_default)
-        if st.session_state['font'].getname() == ImageFont.load_default().getname():
+        st.session_state['font'], success = load_custom_font(font_path, font_size_default)
+        if not success:
             st.warning(f"⚠️ The custom font at '{font_path}' could not be loaded. Using default font instead.")
 
     pdf_file = st.file_uploader("Upload PDF file", type=["pdf"])
