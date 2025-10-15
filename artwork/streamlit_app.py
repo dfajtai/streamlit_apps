@@ -345,7 +345,7 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
             )
             crop.scale = st.slider(
                 f"Scale ({crop.name})",
-                0.1, 10.0,
+                0.1, 5.0,
                 crop.scale,
                 step=0.1,
                 key=f"scale_{idx}"
