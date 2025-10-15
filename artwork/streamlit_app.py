@@ -342,13 +342,15 @@ def crop_creation_ui(images):
         existing_index = next((i for i, c in enumerate(st.session_state['crops']) if c.name == new_crop.name), None)
         if existing_index is not None:
             c = st.session_state['crops'][existing_index]
-            assert isinstance(c,Crop)
-            c.box = new_crop.box
-            c.crop_img_orig = new_crop.crop_img_orig
+            try:
+                c.box = new_crop.box
+                c.crop_img_orig = new_crop.crop_img_orig
+                st.success(f"Updated crop '{new_crop.name}' from page {crop_src_idx + 1}!")
+            except Exception as e:
+                st.error(f"Unable to update parameters of crop '{new_crop.name}' from page {crop_src_idx + 1}! Reseting parameters instead.")
+                st.session_state['crops'][existing_index] = new_crop
 
-            # st.session_state['crops'][existing_index] = new_crop
-
-            st.success(f"Updated crop '{new_crop.name}' from page {crop_src_idx + 1}!")
+            
         else:
             st.session_state['crops'].append(new_crop)
             st.success(f"Added crop '{new_crop.name}' from page {crop_src_idx + 1}!")
