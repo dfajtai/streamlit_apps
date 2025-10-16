@@ -3,6 +3,7 @@ import streamlit as st
 import pymupdf
 from PIL import Image, ImageOps
 from PIL import ImageDraw, ImageFont
+from PIL import ImageEnhance
 import qrcode
 from streamlit_cropper import st_cropper
 from dataclasses import dataclass
@@ -104,40 +105,25 @@ def pdf_to_images(pdf_bytes, dpi=72):
 def load_pdf_and_convert(pdf_file, dpi):
     return pdf_to_images(pdf_file.read(), dpi=dpi)
 
-def generate_qr_code(text, dim):
+
+def generate_qr_code_with_border(text, qr_size = None, box_size = 10, border_size=10):
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
-        box_size=10,
-        border=4)
+        box_size=box_size,
+        border=border_size)
+    
     qr.add_data(text)
     qr.make(fit=True)
+    
     img_qr = qr.make_image(fill='black', back_color='white').convert('RGBA')
-    img_qr = img_qr.resize((dim, dim))
+    
+    if qr_size is not None:
+        img_qr = img_qr.resize((qr_size, qr_size), Image.LANCZOS)
+        enhancer = ImageEnhance.Sharpness(img_qr)
+        img_qr = enhancer.enhance(2)
+
     return img_qr
-
-
-def generate_qr_code_with_border(text, target_height, border_size=10):
-    # QR kód generálása alapból 100x100
-    base_dim = 100
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_H,
-        box_size=10,
-        border=4)
-    qr.add_data(text)
-    qr.make(fit=True)
-    img_qr = qr.make_image(fill='black', back_color='white').convert('RGBA')
-
-    # Átméretezés a kézben adott target magasságra - border nélkül
-    qr_size = target_height - 2*border_size
-
-    # Átméretezem
-    img_qr = img_qr.resize((qr_size, qr_size), Image.LANCZOS)
-
-    # Fehér border hozzáadása körbe
-    img_qr_with_border = ImageOps.expand(img_qr, border=border_size, fill='white')
-    return img_qr_with_border
 
 
 def add_black_border(img, border_size=5):
@@ -464,24 +450,37 @@ def add_title_and_qr_code(
     with_underline: bool = False,
     qr_text: str = "",
     qr_size: int = 100,
+    qr_box_size: int = 10,
     qr_padding: int = 0,
     qr_position: str = "bottom-right",
+    qr_margin_factor: float = 0
 ) -> Image.Image:
     img = base_img.copy()
+    
+    margin = int(img.height * 0.03)
 
+    
     # Ha nincs cím, csak térj vissza a sima képpel esetleg QR-rel
+    
+    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor):
+        x_margin = int(img.width * qr_margin_factor /100.0)
+        y_margin  = int(img.height * qr_margin_factor/100.0)
+        
+        if pos_string == "top-left":
+            pos = (x_margin, y_margin)
+        elif pos_string == "top-right":
+            pos = (img.width - x_margin  - qr_img.width, y_margin)
+        elif pos_string == "bottom-left":
+            pos = (0, img.height - qr_img.height - y_margin)
+        else:
+            pos = (img.width - qr_img.width - x_margin, img.height - qr_img.height - y_margin)
+        return pos
+        
     if not title_text.strip():
         # QR kód hozzáadása, ha meg van adva
         if qr_text.strip():
-            qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size,border_size=qr_padding)
-            if qr_position == "top-left":
-                pos = (0, 0)
-            elif qr_position == "top-right":
-                pos = (img.width - qr_img.width, 0)
-            elif qr_position == "bottom-left":
-                pos = (0, img.height - qr_img.height)
-            else:
-                pos = (img.width - qr_img.width, img.height - qr_img.height)
+            qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
+            pos = get_qr_pos(pos_string= qr_position, img=img, qr_img=qr_img, qr_margin_factor=qr_margin_factor)
             img.paste(qr_img, pos, qr_img)
         return img
 
@@ -490,7 +489,7 @@ def add_title_and_qr_code(
     dummy_draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     bbox = dummy_draw.textbbox((0, 0), title_text, font=font)
     title_height = bbox[3] - bbox[1]
-    margin = int(img.height * 0.03)
+    
     title_block_height = title_height + 2 * margin
 
     # 2. Új kép magasság, ami a kép + cím sáv
@@ -540,15 +539,8 @@ def add_title_and_qr_code(
 
     # 7. QR kód hozzáadás
     if qr_text.strip():
-        qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size,border_size=qr_padding)
-        if qr_position == "top-left":
-            pos = (0, 0)
-        elif qr_position == "top-right":
-            pos = (target_width - qr_img.width, 0)
-        elif qr_position == "bottom-left":
-            pos = (0, target_height - qr_img.height)
-        else:
-            pos = (target_width - qr_img.width, target_height - qr_img.height)
+        qr_img =  generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
+        pos = get_qr_pos(pos_string= qr_position, img=new_canvas, qr_img=qr_img, qr_margin_factor=qr_margin_factor)
         new_canvas.paste(qr_img, pos, qr_img)
 
     return new_canvas
@@ -559,6 +551,7 @@ def app():
     st.set_page_config(page_title="ArtWork")
     st.title("Artwork - an article preview creator")
 
+   
     if 'font' not in st.session_state:
         font_path = "montserrat.ttf"
         font_size_default = 24
@@ -610,21 +603,23 @@ def app():
     page_height_px = int(page_sizes_mm[page_size][1] * output_dpi / 25.4)
     page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_sizes_mm[page_size])
 
+    point_per_mm = output_dpi / 25.4
+    
     st.session_state['page_height_px'] = page_height_px
     scaled_page_img = scale_image(page_img, *page_size_px)
-
 
 
     # --- Add title and QR last ---
     title_text = st.sidebar.text_input("Optional Title", "")
     
+    font_size_c, font_stroke_c = st.sidebar.columns(2)
+    
     f_min, f_max, f_def, f_step = adjust_vals(12, 72, 24, 1, min_ratio=0.01,max_ratio=0.05)
-    font_size_pt = st.sidebar.slider("Title Font Size (pt)", f_min, f_max,  f_def, f_step)
+    font_size_pt = font_size_c.slider("Title Font Size (pt)", f_min, f_max,  f_def, f_step)
     
     font_path = "montserrat.ttf"
-
     
-    stroke_width = st.sidebar.slider("Title Stroke Width", 1, 10, 1, 1)
+    stroke_width = font_stroke_c.slider("Title Stroke Width", 1, 10, 1, 1)
     with_underline = st.sidebar.checkbox("Underline Title", value=False)
 
     st.sidebar.divider()
@@ -632,13 +627,23 @@ def app():
 
     qr_text = st.sidebar.text_area("QR Code Text (max 200 chars)", max_chars=200)
     qr_position = st.sidebar.selectbox("QR Code position", ["top-left", "top-right", "bottom-left", "bottom-right"], index = 1)
-
-    qr_min, qr_max, qr_default, qr_step = adjust_vals(100, 500, 200, 25,min_ratio=0.1,max_ratio=0.5)
-    qr_size = st.sidebar.slider("QR Code size",qr_min, qr_max, qr_default, qr_step)
     
-    qr_p_min, qr_p_max, qr_p_default, qr_p_step = adjust_vals(50, 250, 50, 10,min_ratio=0.01,max_ratio=0.2)
-    qr_padding = st.sidebar.slider("QR Code padding", qr_p_min, qr_p_max, qr_p_default, qr_p_step)
+    qr_m, qr_p = st.sidebar.columns(2)
+    qr_margin = qr_m.slider("QR Code page margin (%)", 0.0, 5.0,0.0,0.5) 
+    qr_padding = qr_p.slider("QR Code padding (%)", 2.5,20.0,5.0,2.5)
     
+    qr_box_mm =  st.sidebar.slider("QR Code symbol size (mm)", 2.0,8.0,3.0,0.5)
+    
+    min_size = 10.0
+    optimal_size = 20.0
+    if str(qr_text) != "":
+        dummy_qr = generate_qr_code_with_border(qr_text,None,border_size=qr_padding)
+        min_size = 100.0 * (0.8 * qr_box_mm * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
+        optimal_size = 100.0 * (1.0 * qr_box_mm  * (dummy_qr.width / point_per_mm)) /  page_size_px[0] 
+        st.session_state["qr_text"] = str(qr_text)
+    
+    _qr_size = st.sidebar.slider("QR Code size (page width %)",min_size,50.0,optimal_size,2.5)
+    qr_size = int(_qr_size / 100.0 * page_size_px[0])
 
     st.markdown("### Define and Manage Crops")
     add_crops = st.checkbox("Add crops to the page")
@@ -660,7 +665,9 @@ def app():
         qr_text=qr_text,
         qr_size=qr_size,
         qr_padding = qr_padding, 
-        qr_position=qr_position
+        qr_position=qr_position,
+        qr_box_size= 10,
+        qr_margin_factor= qr_margin
     )
 
     st.markdown("## 🧾 Final Output with QR")
