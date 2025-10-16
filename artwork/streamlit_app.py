@@ -319,7 +319,7 @@ def crop_creation_ui(images):
         st.rerun()
 
 
-def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_width = 400):
+def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_width = 400, slider_step_percentage = 2.0):
     st.subheader("Position & Scale Crops on Page")
 
     if 'crops' not in st.session_state or not st.session_state['crops']:
@@ -347,14 +347,14 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
                 f"Horizontal offset ({crop.name})",
                 -page_img.width // 2, page_img.width // 2,
                 crop.offset_x,
-                step=int(page_img.width / 100.0),
+                step=int(slider_step_percentage*page_img.width / 100.0),
                 key=f"offset_x_{idx}"
             )
             crop.offset_y = st.slider(
                 f"Vertical offset ({crop.name})",
                 -page_img.height // 2, page_img.height // 2,
                 crop.offset_y,
-                step=int(page_img.height / 100.0),
+                step=int(slider_step_percentage*page_img.height / 100.0),
                 key=f"offset_y_{idx}"
             )
             crop.scale = st.slider(
@@ -420,22 +420,6 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
         
         if not crop.visible:
             continue
-
-        # Kompozicióhoz crop előkészítése opacity és border beállítással
-        # cropped = crop.crop_img_orig.crop(crop.box)
-        # crop_w = int(crop.width * crop.scale)
-        # crop_h = int(crop.height * crop.scale)
-        # cropped_resized = cropped.resize((crop_w, crop_h), Image.LANCZOS)
-
-        # if crop.add_border:
-        #     cropped_resized = ImageOps.expand(cropped_resized, border=crop.border_thickness, fill='black')
-
-        # if cropped_resized.mode != 'RGBA':
-        #     cropped_resized = cropped_resized.convert('RGBA')
-
-        # alpha = cropped_resized.getchannel('A')
-        # alpha = alpha.point(lambda p: int(p * crop.opacity / 100))
-        # cropped_resized.putalpha(alpha)
 
         composed = place_crop_on_page(composed, Crop(
             box=crop.box,
