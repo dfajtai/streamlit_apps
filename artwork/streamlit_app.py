@@ -1,9 +1,14 @@
+from typing import Union, Tuple, List, Dict
+
 import os
 import streamlit as st
 import pymupdf
+
+import numpy as np 
+
 from PIL import Image, ImageOps
 from PIL import ImageDraw, ImageFont
-from PIL import ImageEnhance
+from PIL import ImageEnhance, ImageChops
 import qrcode
 from streamlit_cropper import st_cropper
 from dataclasses import dataclass
@@ -17,6 +22,8 @@ ROOT_FOLDER = "artwork"
 
 @dataclass
 class Crop:
+    canvas_width: int
+    canvas_height: int
     box: tuple                  # (left, upper, right, lower)
     crop_img_orig: Image.Image
     add_border: bool
@@ -31,7 +38,62 @@ class Crop:
     visible: bool = True
     opacity: int = 100
     remove_bg: bool = True
+    margin: int = 0
+    
+    offset_step = 5.0
 
+    def __post_init__(self):
+        print(f"Crop '{self.name}' created with size of {self.width} x {self.height}")
+    
+    @property
+    def offset_x_pct(self) -> float:
+        w = self.canvas_width
+        if w == 0:
+            return 0.0
+        return  round_to_step((self.offset_x / w) * 100.0, self.offset_step)
+
+    @offset_x_pct.setter
+    def offset_x_pct(self, pct: float):
+        w = self.canvas_width
+        self.offset_x = int((pct / 100.0) * w)
+
+    @property
+    def offset_y_pct(self) -> float:
+        h = self.canvas_height
+        if h == 0:
+            return 0.0
+        return round_to_step((self.offset_y / h) * 100.0 , self.offset_step)
+
+    @offset_y_pct.setter
+    def offset_y_pct(self, pct: float):
+        h = self.canvas_height
+        self.offset_y = int((pct / 100.0) * h)
+        
+    
+    def copy_params_from(self, other_crop):
+        """
+        Create a new Crop instance copying all parameters from other_crop except
+        'crop_img_orig' and 'box' which remain as in the current instance.
+        """
+        return Crop(
+            canvas_width= self.canvas_width,
+            canvas_height= self.canvas_height,
+            box=self.box,
+            crop_img_orig=self.crop_img_orig,
+            add_border=other_crop.add_border,
+            border_thickness=other_crop.border_thickness,
+            name=other_crop.name,
+            width=self.width,
+            height=self.height,
+            aspect_ratio=self.aspect_ratio,
+            offset_x=other_crop.offset_x,
+            offset_y=other_crop.offset_y,
+            scale=other_crop.scale,
+            visible=other_crop.visible,
+            opacity=other_crop.opacity,
+            remove_bg=other_crop.remove_bg,
+            margin=other_crop.margin
+        )
 
 # --- PAGE SELECTOR CLASS ---
 
@@ -42,7 +104,7 @@ class PageSelector:
         self.label = label
         self.num_pages = len(images)
 
-    def render(self) -> int:
+    def render(self, show_image:bool = True) -> int:
         st.markdown(f"### {self.label}")
 
         if self.num_pages == 1:
@@ -63,13 +125,12 @@ class PageSelector:
             key=f"{self.key_prefix}_slider",
             width = "stretch"
         )
-
-        st.image(
-            self.images[selected_page - 1],
-            width=250,
-            caption=f"{self.label}: Page {selected_page}",
-            use_container_width=False
-        )
+        if show_image:
+            st.image(
+                self.images[selected_page - 1],
+                width=250,
+                caption=f"{self.label}: Page {selected_page}",
+            )
 
         st.session_state[f"{self.key_prefix}_page"] = selected_page
 
@@ -109,6 +170,102 @@ def load_pdf_and_convert(pdf_file, dpi):
     return pdf_to_images(pdf_file.read(), dpi=dpi)
 
 
+
+def shrink_to_content(img: Image.Image, mode="top_bottom") -> Union[Tuple[int, int], Tuple[int, int, int, int]]:
+    """
+    Returns displacement bounding box of non-white content relative to the image size.
+
+    - mode 'top_bottom': returns (top_displacement, bottom_displacement)
+        top_displacement >= 0
+        bottom_displacement <= 0 (negatív vagy 0)
+
+    - mode 'all': returns (left_displacement, top_displacement, right_displacement, bottom_displacement)
+        left_displacement >= 0
+        top_displacement >= 0
+        right_displacement <= 0
+        bottom_displacement <= 0
+
+    Considers white pixels as RGB >= 240 and alpha != 0.
+    """
+
+    img_rgba = img.convert('RGBA')
+    arr = np.array(img_rgba)
+
+    white_threshold = 240
+
+    # Maszk, ahol nem-fehér pixelek vannak True-n
+    mask = ~(
+        (arr[..., 0] >= white_threshold) &
+        (arr[..., 1] >= white_threshold) &
+        (arr[..., 2] >= white_threshold) &
+        (arr[..., 3] != 0)
+    )
+    coords = np.argwhere(mask)
+
+    if coords.size == 0:
+        # Nincs nem-fehér pixel, nincs crop, nincs displacement
+        if mode == "top_bottom":
+            return (0, 0)
+        else:
+            return (0, 0, 0, 0)
+
+    # Pixel koordináták szélső értékei
+    top = coords[:, 0].min()
+    bottom = coords[:, 0].max()
+    left = coords[:, 1].min()
+    right = coords[:, 1].max()
+
+    img_h, img_w = arr.shape[:2]
+
+    # Számoljuk a displacementeket
+    top_disp = top  # 0 vagy pozitív
+    bottom_disp = bottom - img_h  # 0 vagy negatív
+    left_disp = left  # 0 vagy pozitív
+    right_disp = right - img_w  # 0 vagy negatív
+
+    if mode == "top_bottom":
+        return (top_disp, bottom_disp)
+
+    else:
+        return (left_disp, top_disp, right_disp, bottom_disp)
+    
+
+def update_bbox(orig_bbox: Tuple[int,int,int,int], 
+                displace: Union[Tuple[int,int], Tuple[int,int,int,int]],
+                mode="top_bottom") -> Tuple[int,int,int,int]:
+    """
+    Update the original bounding box coords using displacement values.
+
+    orig_bbox: (left, top, right, bottom)
+    displace:
+      - mode 'top_bottom' -> (top_disp, bottom_disp)
+      - mode 'all' -> (left_disp, top_disp, right_disp, bottom_disp)
+      
+    Displacement:
+      top_disp, left_disp >= 0,
+      bottom_disp, right_disp <= 0 (negatív vagy 0)
+
+    Returns updated bounding box: (left, top, right, bottom)
+    """
+
+    left, top, right, bottom = orig_bbox
+
+    if mode == "top_bottom":
+        top_disp, bottom_disp = displace
+        # bottom_disp negatív, ezért összeadjuk
+        new_top = top + top_disp
+        new_bottom = bottom + bottom_disp
+        return (left, new_top, right, new_bottom)
+
+    else:
+        left_disp, top_disp, right_disp, bottom_disp = displace
+        new_left = left + left_disp
+        new_top = top + top_disp
+        new_right = right + right_disp
+        new_bottom = bottom + bottom_disp
+        return (new_left, new_top, new_right, new_bottom)
+
+
 def generate_qr_code_with_border(text, qr_size = None, box_size = 10, border_size=10):
     qr = qrcode.QRCode(
         version=1,
@@ -141,16 +298,37 @@ def scale_image(image, target_width, target_height):
     return image.resize((new_w, new_h), Image.LANCZOS)
 
 def place_crop_on_page(page_img, crop: Crop):
-    crop_w = int(crop.width * crop.scale)
-    crop_h = int(crop.height * crop.scale)
+    # Számoljuk a scale faktort a canvas és a page_img méretei alapján
+    scale_w = page_img.width / crop.canvas_width
+    scale_h = page_img.height / crop.canvas_height
 
+    # Margin pixelben, canvas alapú margó százalék skálázva page_img-re
+    margin_x = int(crop.canvas_width * crop.margin / 100.0 * scale_w)
+    margin_y = int(crop.canvas_height * crop.margin / 100.0 * scale_h)
+
+    # Kivágjuk az eredeti crop területet a crop_img_orig-ból
     cropped = crop.crop_img_orig.crop(crop.box)
+
+    # Számoljuk az átméretezett crop méretét a scale faktorokat is figyelembe véve
+    crop_w = int(crop.width * crop.scale * scale_w)
+    crop_h = int(crop.height * crop.scale * scale_h)
+
+    # Átméretezzük a crop-ot
     cropped_resized = cropped.resize((crop_w, crop_h), Image.LANCZOS)
 
+    # Adjunk hozzá margint, mint padding, margint a szélekre
+    if margin_x > 0 or margin_y > 0:
+        new_w = crop_w + 2 * margin_x
+        new_h = crop_h + 2 * margin_y
+        expanded = Image.new("RGBA", (new_w, new_h), (255, 255, 255, 255))
+        expanded.paste(cropped_resized, (margin_x, margin_y), cropped_resized)
+        cropped_resized = expanded
+
+    # Ha szükséges, adjunk hozzá fekete border-t
     if crop.add_border:
         cropped_resized = ImageOps.expand(cropped_resized, border=crop.border_thickness, fill='black')
 
-    # Ha remove_bg True vagy opacity < 100, eltávolítjuk a fehér hátteret és állítjuk az alfát
+    # Ha háttér eltávolítása kell vagy átlátszóság módosítás
     if crop.remove_bg or crop.opacity < 100:
         if cropped_resized.mode != 'RGBA':
             cropped_resized = cropped_resized.convert('RGBA')
@@ -160,31 +338,38 @@ def place_crop_on_page(page_img, crop: Crop):
         threshold = 250
         for item in datas:
             r, g, b, a = item
+            effective_opacity = crop.opacity
+            new_alpha = int(a * effective_opacity / 100)
+
             if r > threshold and g > threshold and b > threshold:
-                # Fehér pixel -> teljesen átlátszó
-                newData.append((r, g, b, 0))
+                if crop.remove_bg:
+                    newData.append((r, g, b, 0))
+                else:
+                    newData.append((r, g, b, new_alpha))
             else:
-                # Nem fehér pixel - alfa opacity szerint korrigálva
-                effective_opacity = crop.opacity if not crop.remove_bg else 100
-                new_alpha = int(a * effective_opacity / 100)
                 newData.append((r, g, b, new_alpha))
         cropped_resized.putdata(newData)
 
+    # Hozzunk létre üres overlay képet a page_img méretével
     overlay = Image.new('RGBA', page_img.size, (0, 0, 0, 0))
-    pos_x = int((page_img.width - cropped_resized.width) / 2 + crop.offset_x)
-    pos_y = int((page_img.height - cropped_resized.height) / 2 + crop.offset_y)
+
+    # Számoljuk ki a crop végleges pozícióját page_img koordinátarendszerben
+    pos_x = int((page_img.width - cropped_resized.width) / 2 + crop.offset_x * scale_w)
+    pos_y = int((page_img.height - cropped_resized.height) / 2 + crop.offset_y * scale_h)
+
     overlay.paste(cropped_resized, (pos_x, pos_y), cropped_resized)
 
+    # Keverjük össze az overlayt az eredeti page_img-pel
     composed = Image.alpha_composite(page_img.convert('RGBA'), overlay)
 
     return composed
-
 
 
 def export_image_to_png(img: Image.Image, dpi: int) -> bytes:
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format='PNG', dpi=(dpi, dpi))
     return img_byte_arr.getvalue()
+
 
 def adjust_vals(
     base_min: int,
@@ -226,16 +411,147 @@ def manage_main_page_selection(images):
     selected_idx = selector.render()
     st.session_state["main_page"] = selected_idx + 1  # 1-based display
     st.info(f"Selected page {selected_idx + 1} as main page")
+    
+
+def crop_main_page_fullwidth(images):
+    """
+    Full-width crop duplacsúszkás vezérléssel + auto shrink + margin.
+    Két oszlopos elrendezés: bal oldalt beállítások, jobb oldalt preview.
+    """
+    st.subheader("✂️ Main page crop")
+
+    main_idx = st.session_state.get("main_page", 1) - 1
+    img = images[main_idx].convert("RGBA")
+
+    col1, col2 = st.columns([0.4, 0.6])
+
+    
+    
+    with col1:
+        st.markdown("### Settings")
+
+        st.session_state["main_atuo_crop"] =  st.checkbox(
+        "🧩 Fit to content",
+        value=True
+        )
+        
+        # --- crop range sliders ---
+        top_default = st.session_state.get("main_crop_top_pct", 10)
+        top_pct = st.number_input(
+            "Cut from top (%)",
+            0, 99, top_default, step=1, key="main_crop_top_pct_slider"
+        )
+
+        bottom_max = max(0, 99 - top_pct)
+        bottom_default = st.session_state.get("main_crop_bottom_pct", 10)
+        bottom_default = min(bottom_default, bottom_max)
+        bottom_pct = st.number_input(
+            "Cut from bottom (%)",
+            0, bottom_max, bottom_default, step=1, key="main_crop_bottom_pct_slider"
+        )
+
+        # store state
+        st.session_state['main_crop_top_pct'] = top_pct
+        st.session_state['main_crop_bottom_pct'] = bottom_pct
+
+        # --- add top/bottom margins ---
+        st.markdown("#### Add vertical margins")
+        top_margin_pct = st.slider("Top margin (%)", 0, 10, 0, step=1, key="main_crop_margin_top")
+        bottom_margin_pct = st.slider("Bottom margin (%)", 0, 10, 0, step=1, key="main_crop_margin_bottom")
+
+        # --- alignment choice ---
+        align = st.radio(
+            "Vertical alignment:",
+            ["Top", "Center", "Bottom"],
+            horizontal=True,
+            index=1,
+            key="main_crop_align"
+        )
+
+    # --- crop image by sliders ---
+    h = img.height
+    top_px = int(round(top_pct / 100.0 * h))
+    bottom_px = int(round(bottom_pct / 100.0 * h))
+    cropped_h = max(1, h - top_px - bottom_px)
+    forced_box = (0, top_px, img.width, top_px + cropped_h)
+    cropped = img.crop(forced_box)
+
+    if st.session_state.get("main_atuo_crop", False):
+        top_rel, bottom_rel = shrink_to_content(cropped, mode="top_bottom")
+        new_bbox = update_bbox((0, top_px, img.width, top_px + cropped_h), (top_rel, bottom_rel), mode="top_bottom")
+        new_top, new_bottom = new_bbox[1], new_bbox[3]
+
+        cropped = img.crop((0, new_top, img.width, new_bottom))
+
+        top_margin_px = int(round(top_margin_pct / 100.0 * img.height))
+        bottom_margin_px = int(round(bottom_margin_pct / 100.0 * img.height))
+        expanded_h = cropped.height + top_margin_px + bottom_margin_px
+        expanded = Image.new("RGBA", (img.width, expanded_h), (255, 255, 255, 255))
+        expanded.paste(cropped, (0, top_margin_px), cropped)
+    else:
+        new_top, new_bottom = top_px, top_px + cropped_h
+        expanded = Image.new("RGBA", (img.width, new_bottom - new_top), (255, 255, 255, 255))
+        expanded.paste(cropped, (0, 0), cropped)
+    
+    # --- add top/bottom margins ---
+    top_margin_px = int(round(top_margin_pct / 100.0 * img.height))
+    bottom_margin_px = int(round(bottom_margin_pct / 100.0 * img.height))
+
+    expanded_h = cropped.height + top_margin_px + bottom_margin_px
+    expanded = Image.new("RGBA", (img.width, expanded_h), (255, 255, 255, 255))
+    expanded.paste(cropped, (0, top_margin_px), cropped)
+
+    # --- alignment on full-size canvas ---
+    canvas = Image.new("RGBA", img.size, (255, 255, 255, 255))
+
+    if align == "Top":
+        y_pos = 0
+    elif align == "Center":
+        y_pos = (img.height - expanded.height) // 2
+    else:
+        y_pos = img.height - expanded.height
+
+    y_pos = max(0, min(y_pos, img.height - expanded.height))
+    canvas.paste(expanded, (0, y_pos), expanded)
+
+    with col2:
+        st.markdown("### Preview")
+
+        # Teljes oldal előnézeti képe, az eredeti képből méretezve (illeszkedik a kol1 szélességéhez)
+        preview_width = 400
+        aspect_ratio = img.width / img.height
+        preview_height = int(preview_width / aspect_ratio)
+        preview_img = img.resize((preview_width, preview_height), Image.LANCZOS).copy()
+
+        draw = ImageDraw.Draw(preview_img)
+
+        # Számoljuk át a top és bottom pozíciókat a preview mérethez
+        scale_preview = preview_img.height / img.height
+        top_line_y = int((new_top) * scale_preview)
+        bottom_line_y = int((new_bottom) * scale_preview)
+
+        # Rajzoljunk két piros vízszintes vonalat a preview-ra
+        line_color = (255, 0, 0)
+        line_thickness = 1
+
+        draw.line([(0, top_line_y), (preview_img.width, top_line_y)], fill=line_color, width=line_thickness)
+        draw.line([(0, bottom_line_y), (preview_img.width, bottom_line_y)], fill=line_color, width=line_thickness)
+
+        st.image(preview_img, caption=f"Page preview with crop boundaries", width="stretch")
+
+
+    return canvas
+
 
 def crop_creation_ui(images):
-    st.subheader("Define Crop (choose source page + free crop area)")
+    st.subheader("✂️ Define Crop (choose source page + free crop area)")
 
     # --- page selector for crop source ---
     crop_source_selector = PageSelector("crop_source", images, "Crop Source Page")
-    crop_src_idx = crop_source_selector.render()
+    crop_src_idx = crop_source_selector.render(show_image=False)
     crop_source_img = images[crop_src_idx]
 
-    # --- cropper ---
+    # --- Cropper ---
     crop_box = st_cropper(
         crop_source_img,
         aspect_ratio=None,
@@ -259,48 +575,75 @@ def crop_creation_ui(images):
 
     crop_name = st.text_input("Crop name")
 
-    if st.button("Add crop",use_container_width=True):
+    fit_to_content = st.checkbox(
+        "🧩 Fit to content",
+        value=True
+    )
+
+    if st.button("Add crop", width="stretch"):
         if not crop_name.strip():
             st.warning("Please enter a crop name before adding crop.")
             return
 
-        width = crop_box[2] - crop_box[0]
-        height = crop_box[3] - crop_box[1]
+        left, top, right, bottom = map(int, crop_box)
+        width = right - left
+        height = bottom - top
         if width <= 0 or height <= 0:
             st.error("Invalid crop area. Please reselect.")
             return
 
-        aspect_ratio = width / height
+        cropped = crop_source_img.crop((left, top, right, bottom)).convert("RGBA")
+
+        if fit_to_content:
+            # Új shrink_to_content - bbox displace logika (mode="all")
+            displace = shrink_to_content(cropped, mode="all")  # (left_disp, top_disp, right_disp, bottom_disp)
+            # Eredeti crop box az oldalon:
+            orig_bbox = (0, 0, cropped.width, cropped.height)
+            # Frissített bbox relatív eltolások alapján:
+            updated_bbox = update_bbox(orig_bbox, displace, mode="all")
+            # bbox koordináták helyileg a cropped képre vonatkoznak
+            l, t, r, b = updated_bbox
+            # Ellenőrzés (ha nem érvényes, szimplán vissza az eredeti cropped)
+            if r <= l or b <= t:
+                print("empty after crop")
+            else:
+                cropped = cropped.crop((l, t, r, b))
+
+        aspect_ratio = cropped.width / cropped.height if cropped.height > 0 else 1.0
+        
         new_crop = Crop(
-            box=crop_box,
-            crop_img_orig=crop_source_img,
+            canvas_width = crop_source_img.width,
+            canvas_height = crop_source_img.height,
+            box=(0, 0, cropped.width, cropped.height),
+            crop_img_orig=cropped,
             add_border=False,
             border_thickness=1,
             name=crop_name.strip(),
-            width=width,
-            height=height,
+            width=cropped.width,
+            height=cropped.height,
             aspect_ratio=aspect_ratio,
             visible=True,
-            remove_bg= True,
-            opacity=100
+            remove_bg=True,
+            opacity=100,
+            scale= 1.0
         )
-
+        
+        
+        
         if 'crops' not in st.session_state:
             st.session_state['crops'] = []
 
-
-        existing_index = next((i for i, c in enumerate(st.session_state['crops']) if c.name == new_crop.name), None)
+        existing_index = next(
+            (i for i, c in enumerate(st.session_state['crops']) if c.name == new_crop.name),
+            None
+        )
         if existing_index is not None:
-            c = st.session_state['crops'][existing_index]
             try:
-                c.box = new_crop.box
-                c.crop_img_orig = new_crop.crop_img_orig
-                st.success(f"Updated crop '{new_crop.name}' from page {crop_src_idx + 1}!")
-            except Exception as e:
-                st.error(f"Unable to update parameters of crop '{new_crop.name}' from page {crop_src_idx + 1}! Reseting parameters instead.")
-                st.session_state['crops'][existing_index] = new_crop
-
-            
+                st.session_state['crops'][existing_index] = new_crop.copy_params_from(st.session_state['crops'][existing_index])
+            except:
+                st.session_state['crops'][existing_index] = new_crop               
+                
+            st.success(f"Updated crop '{new_crop.name}' from page {crop_src_idx + 1}!")
         else:
             st.session_state['crops'].append(new_crop)
             st.success(f"Added crop '{new_crop.name}' from page {crop_src_idx + 1}!")
@@ -308,7 +651,10 @@ def crop_creation_ui(images):
         st.rerun()
 
 
-def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_width = 400, slider_step_percentage = 2.0):
+def crops_placement_ui(page_img, crop_preview_width=600, placement_preview_width=400):
+    import streamlit as st
+    from PIL import ImageDraw
+
     st.subheader("Position & Scale Crops on Page")
 
     if 'crops' not in st.session_state or not st.session_state['crops']:
@@ -327,25 +673,26 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
         cropped_preview_resized = cropped_preview.resize((preview_width, preview_height), Image.LANCZOS)
         st.image(cropped_preview_resized, caption=f"Crop preview: {crop.name}", width=preview_width)
 
-
-        # Első táblázat: Offset és scale csúszkák
         col1, col2 = st.columns(2)
-
         with col1:
-            crop.offset_x = st.slider(
-                f"Horizontal offset ({crop.name})",
-                -page_img.width // 2, page_img.width // 2,
-                crop.offset_x,
-                step=int(slider_step_percentage*page_img.width / 100.0),
-                key=f"offset_x_{idx}"
+            new_offset_x_pct = st.slider(
+                f"Horizontal offset (%) – {crop.name}",
+                -50.0, 50.0,
+                crop.offset_x_pct,
+                step=crop.offset_step,
+                key=f"offset_x_pct_{idx}"
             )
-            crop.offset_y = st.slider(
-                f"Vertical offset ({crop.name})",
-                -page_img.height // 2, page_img.height // 2,
-                crop.offset_y,
-                step=int(slider_step_percentage*page_img.height / 100.0),
-                key=f"offset_y_{idx}"
+            crop.offset_x_pct = round_to_step(new_offset_x_pct, step=crop.offset_step)
+
+            new_offset_y_pct = st.slider(
+                f"Vertical offset (%) – {crop.name}",
+                -50.0, 50.0,
+                crop.offset_y_pct,
+                step=crop.offset_step,
+                key=f"offset_y_pct_{idx}"
             )
+            crop.offset_y_pct = round_to_step(new_offset_y_pct, step=crop.offset_step)
+
             crop.scale = st.slider(
                 f"Scale ({crop.name})",
                 0.1, 5.0,
@@ -354,33 +701,34 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
                 key=f"scale_{idx}"
             )
 
-            o1, o2 = st.columns(2)
-            
-            crop.opacity = st.slider("Opacity", 0, 100, getattr(crop, 'opacity', 100), step = 5, key=f"opacity_{idx}")
-            crop.remove_bg = o1.checkbox("Remove background", value=getattr(crop, 'visible', True), key=f"remove_bg_{idx}")
-            crop.visible = o2.checkbox("Visible", value=getattr(crop, 'visible', True), key=f"visible_{idx}")
-            
-
-            b1,b2 = st.columns(2)
-            crop.add_border = b1.checkbox("Add black border", value=crop.add_border, key=f"border_{idx}")
-            crop.border_thickness = b2.number_input(
-                "Border thickness", 1, 20,
-                getattr(crop, 'border_thickness', 3),
-                key=f"border_thickness_{idx}"
+            crop.margin = st.slider(
+                f"Margin (%) – {crop.name}",
+                0, 10,
+                crop.margin,
+                step=1,
+                key=f"margin_{idx}"
             )
 
+            o1, o2 = st.columns(2)
+            crop.opacity = o1.slider("Opacity", 0, 100, crop.opacity, step=5, key=f"opacity_{idx}")
+            crop.remove_bg = o1.checkbox("Remove background", crop.remove_bg, key=f"remove_bg_{idx}")
+            crop.visible = o2.checkbox("Visible", crop.visible, key=f"visible_{idx}")
+
+            b1, b2 = st.columns(2)
+            crop.add_border = b1.checkbox("Add black border", crop.add_border, key=f"border_{idx}")
+            crop.border_thickness = b2.number_input("Border thickness", 1, 20, crop.border_thickness, key=f"border_thickness_{idx}")
+
             d1, d2 = st.columns(2)
-            delete_clicked = d1.button("Delete", key=f"delete_{idx}", use_container_width=True)
-            confirm = d2.checkbox("Confirm delete", key=f"confirm_{idx}",width="stretch")
+            delete_clicked = d1.button("Delete", key=f"delete_{idx}", width="stretch")
+            confirm = d2.checkbox("Confirm delete", value=False, key=f"confirm_{idx}")
 
             if delete_clicked and confirm:
-                del st.session_state['crops'][idx]
+                del st.session_state["crops"][idx]
                 st.success(f"Crop '{crop.name}' deleted.")
-                st.rerun()
+                st.experimental_rerun()
                 return
 
         with col2:
-            # Teljes oldalkép preview piros kerettel
             preview_max_width = placement_preview_width
             aspect_ratio = page_img.width / page_img.height
             preview_w = preview_max_width
@@ -389,49 +737,45 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
 
             draw = ImageDraw.Draw(preview_img)
 
-            # Méretezett crop pozíciója a preview-n
-            scaled_crop_w = int(crop.width * crop.scale * (preview_w / page_img.width))
-            scaled_crop_h = int(crop.height * crop.scale * (preview_h / page_img.height))
-            center_x = preview_w // 2 + int(crop.offset_x * (preview_w / page_img.width))
-            center_y = preview_h // 2 + int(crop.offset_y * (preview_h / page_img.height))
+            # Belső scale a canvas és a page_img mérete között
+            scale_w = page_img.width / crop.canvas_width
+            scale_h = page_img.height / crop.canvas_height
+
+            # Margin átszámolva canvas méretből, majd skálázva preview mérethez
+            margin_x = int(crop.canvas_width * crop.margin / 100.0 * (preview_w / crop.canvas_width))
+            margin_y = int(crop.canvas_height * crop.margin / 100.0 * (preview_h / crop.canvas_height))
+
+            # Scaled crop size + margin, tovább arányosítva preview mérethez
+            scaled_crop_w = int(crop.width * crop.scale * (preview_w / crop.canvas_width)) + 2 * margin_x
+            scaled_crop_h = int(crop.height * crop.scale * (preview_h / crop.canvas_height)) + 2 * margin_y
+
+            # Offset pixelek arányosítva preview mérethez
+            offset_x_px = int(crop.offset_x * (preview_w / crop.canvas_width))
+            offset_y_px = int(crop.offset_y * (preview_h / crop.canvas_height))
+
+            center_x = preview_w // 2 + offset_x_px
+            center_y = preview_h // 2 + offset_y_px
+
             left = center_x - scaled_crop_w // 2
             top = center_y - scaled_crop_h // 2
             right = center_x + scaled_crop_w // 2
             bottom = center_y + scaled_crop_h // 2
 
-            border_thickness = max(1, getattr(crop, 'border_thickness', 3))
-            for i in range(border_thickness):
-                rect = [left - i, top - i, right + i, bottom + i]
-                draw.rectangle(rect, outline="red")
+            draw.rectangle([left, top, right, bottom], outline="red", width=3)
 
             st.image(preview_img, caption=f"Full page preview with crop: {crop.name}", width=preview_max_width)
 
-        
+
         if not crop.visible:
             continue
 
-        composed = place_crop_on_page(composed, Crop(
-            box=crop.box,
-            crop_img_orig=crop.crop_img_orig,
-            add_border=crop.add_border,
-            border_thickness=crop.border_thickness,
-            name=crop.name,
-            width=crop.width,
-            height=crop.height,
-            aspect_ratio=crop.aspect_ratio,
-            offset_x=crop.offset_x,
-            offset_y=crop.offset_y,
-            scale=crop.scale,
-            visible=crop.visible,
-            opacity=crop.opacity,
-            remove_bg= crop.remove_bg
-        ))
+        composed = place_crop_on_page(composed, crop)
 
     st.markdown("## 🖼️ Final Composition (All Crops Placed)")
-    st.image(composed, use_container_width =True)
+    st.image(composed, width="stretch")
 
     if st.button("Reset all crop positions & scales"):
-        for c in st.session_state['crops']:
+        for c in st.session_state["crops"]:
             c.offset_x = 0
             c.offset_y = 0
             c.scale = 1.0
@@ -439,9 +783,10 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
             c.visible = True
             c.opacity = 100
             c.border_thickness = 3
-        st.rerun()
+        st.experimental_rerun()
 
     return composed
+
 
 
 def add_title_and_qr_code(
@@ -602,9 +947,16 @@ def app():
 
     images = st.session_state['images']
     manage_main_page_selection(images)
+    
+    crop_main_page = st.checkbox("Crop main page")
     main_idx = st.session_state.get("main_page", 1) - 1
-    page_img = images[main_idx].convert("RGBA")
-        
+    
+    if crop_main_page:
+        page_img = crop_main_page_fullwidth(images)
+    else:
+        page_img = images[main_idx].convert("RGBA")
+    
+
     page_height_px = int(page_sizes_mm[page_size][1] * output_dpi / 25.4)
     page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_sizes_mm[page_size])
 
@@ -683,7 +1035,7 @@ def app():
     )
 
     st.markdown("## 🧾 Final Output with QR")
-    st.image(final_img, use_container_width =True)
+    st.image(final_img, width="stretch")
 
 
     # --- Export final image ---
