@@ -60,7 +60,7 @@ class PageSelector:
             selected_page,
             step=1,
             key=f"{self.key_prefix}_slider",
-            width="stretch"
+            width = "stretch"
         )
 
         st.image(
@@ -270,7 +270,7 @@ def crop_creation_ui(images):
 
     crop_name = st.text_input("Crop name")
 
-    if st.button("Add crop"):
+    if st.button("Add crop",use_container_width=True):
         if not crop_name.strip():
             st.warning("Please enter a crop name before adding crop.")
             return
@@ -368,7 +368,7 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
             o1, o2 = st.columns(2)
             
             crop.opacity = st.slider("Opacity", 0, 100, getattr(crop, 'opacity', 100), step = 5, key=f"opacity_{idx}")
-            crop.remove_bg = o1.checkbox("Remove background", value=True, key=f"remove_bg_{idx}")
+            crop.remove_bg = o1.checkbox("Remove background", value=getattr(crop, 'visible', True), key=f"remove_bg_{idx}")
             crop.visible = o2.checkbox("Visible", value=getattr(crop, 'visible', True), key=f"visible_{idx}")
             
 
@@ -422,20 +422,20 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
             continue
 
         # Kompozicióhoz crop előkészítése opacity és border beállítással
-        cropped = crop.crop_img_orig.crop(crop.box)
-        crop_w = int(crop.width * crop.scale)
-        crop_h = int(crop.height * crop.scale)
-        cropped_resized = cropped.resize((crop_w, crop_h), Image.LANCZOS)
+        # cropped = crop.crop_img_orig.crop(crop.box)
+        # crop_w = int(crop.width * crop.scale)
+        # crop_h = int(crop.height * crop.scale)
+        # cropped_resized = cropped.resize((crop_w, crop_h), Image.LANCZOS)
 
-        if crop.add_border:
-            cropped_resized = ImageOps.expand(cropped_resized, border=crop.border_thickness, fill='black')
+        # if crop.add_border:
+        #     cropped_resized = ImageOps.expand(cropped_resized, border=crop.border_thickness, fill='black')
 
-        if cropped_resized.mode != 'RGBA':
-            cropped_resized = cropped_resized.convert('RGBA')
+        # if cropped_resized.mode != 'RGBA':
+        #     cropped_resized = cropped_resized.convert('RGBA')
 
-        alpha = cropped_resized.getchannel('A')
-        alpha = alpha.point(lambda p: int(p * crop.opacity / 100))
-        cropped_resized.putalpha(alpha)
+        # alpha = cropped_resized.getchannel('A')
+        # alpha = alpha.point(lambda p: int(p * crop.opacity / 100))
+        # cropped_resized.putalpha(alpha)
 
         composed = place_crop_on_page(composed, Crop(
             box=crop.box,
@@ -450,7 +450,8 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
             offset_y=crop.offset_y,
             scale=crop.scale,
             visible=crop.visible,
-            opacity=crop.opacity
+            opacity=crop.opacity,
+            remove_bg= crop.remove_bg
         ))
 
     st.markdown("## 🖼️ Final Composition (All Crops Placed)")
