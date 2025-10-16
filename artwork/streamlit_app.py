@@ -77,6 +77,9 @@ class PageSelector:
 
 # --- UTILS ---
 
+def round_to_step(value, step=5.0):
+    return round(value / step) * step
+
 def load_custom_font(font_path: str, font_size: int):
     font_path = os.path.join(ROOT_FOLDER, "assets",font_path)
     try:
@@ -612,7 +615,7 @@ def app():
 
 
     # --- Add title and QR last ---
-    title_text = st.sidebar.text_input("Optional Title", "")
+    title_text = st.sidebar.text_input("Title (Optional)", "")
     
     font_size_c, font_stroke_c = st.sidebar.columns(2)
     
@@ -623,8 +626,6 @@ def app():
     
     stroke_width = font_stroke_c.slider("Title Stroke Width", 1, 10, 1, 1)
     with_underline = st.sidebar.checkbox("Underline Title", value=False)
-
-    st.sidebar.divider()
 
 
     qr_text = st.sidebar.text_area("QR Code Text (max 200 chars)", max_chars=200)
@@ -642,7 +643,11 @@ def app():
         dummy_qr = generate_qr_code_with_border(qr_text,None,border_size=qr_padding)
         min_size = 100.0 * (0.8 * qr_box_mm * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
         optimal_size = 100.0 * (1.0 * qr_box_mm  * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
-        st.sidebar.info(f"Optimal size: {optimal_size}%")
+        
+        min_size = round_to_step(min_size,2.5)
+        optimal_size = round_to_step(optimal_size,2.5)
+        
+        st.sidebar.info(f"Optimal size: {optimal_size:.1f}%")
         optimal_size = max(float(st.session_state['qr_size']), optimal_size)
         
         st.session_state["qr_text"] = str(qr_text)
