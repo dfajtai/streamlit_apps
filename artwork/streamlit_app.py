@@ -464,6 +464,7 @@ def add_title_and_qr_code(
     with_underline: bool = False,
     qr_text: str = "",
     qr_size: int = 100,
+    qr_padding: int = 0,
     qr_position: str = "bottom-right",
 ) -> Image.Image:
     img = base_img.copy()
@@ -472,7 +473,7 @@ def add_title_and_qr_code(
     if not title_text.strip():
         # QR kód hozzáadása, ha meg van adva
         if qr_text.strip():
-            qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size)
+            qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size,border_size=qr_padding)
             if qr_position == "top-left":
                 pos = (0, 0)
             elif qr_position == "top-right":
@@ -539,7 +540,7 @@ def add_title_and_qr_code(
 
     # 7. QR kód hozzáadás
     if qr_text.strip():
-        qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size)
+        qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size,border_size=qr_padding)
         if qr_position == "top-left":
             pos = (0, 0)
         elif qr_position == "top-right":
@@ -632,8 +633,11 @@ def app():
     qr_text = st.sidebar.text_area("QR Code Text (max 200 chars)", max_chars=200)
     qr_position = st.sidebar.selectbox("QR Code position", ["top-left", "top-right", "bottom-left", "bottom-right"], index = 1)
 
-    qr_min, qr_max, qr_default, qr_step = adjust_vals(100, 500, 200, 25)
+    qr_min, qr_max, qr_default, qr_step = adjust_vals(100, 500, 200, 25,min_ratio=0.1,max_ratio=0.5)
     qr_size = st.sidebar.slider("QR Code size",qr_min, qr_max, qr_default, qr_step)
+    
+    qr_p_min, qr_p_max, qr_p_default, qr_p_step = adjust_vals(50, 250, 50, 10,min_ratio=0.01,max_ratio=0.2)
+    qr_padding = st.sidebar.slider("QR Code padding", qr_p_min, qr_p_max, qr_p_default, qr_p_step)
     
 
     st.markdown("### Define and Manage Crops")
@@ -655,6 +659,7 @@ def app():
         with_underline=with_underline,
         qr_text=qr_text,
         qr_size=qr_size,
+        qr_padding = qr_padding, 
         qr_position=qr_position
     )
 
