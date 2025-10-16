@@ -635,7 +635,7 @@ def app():
     qr_margin = qr_m.slider("QR Code page margin (%)", 0.0, 5.0,0.0,0.5) 
     qr_padding = qr_p.slider("QR Code padding (%)", 2.5,20.0,5.0,2.5)
     
-    qr_box_mm =  st.sidebar.slider("QR Code symbol size (mm)", 2.0,8.0,3.0,0.5)
+    qr_box_mm =  st.sidebar.slider("Approx. QR Code symbol size (mm)", 2.0,8.0,3.0,0.5)
     
     min_size = 10.0
     optimal_size = 20.0
@@ -647,7 +647,7 @@ def app():
         min_size = round_to_step(min_size,2.5)
         optimal_size = round_to_step(optimal_size,2.5)
         
-        st.sidebar.info(f"Optimal size: {optimal_size:.1f}%")
+        st.sidebar.info(f"Approx. Optimal size: {optimal_size:.1f}%")
         optimal_size = max(float(st.session_state['qr_size']), optimal_size)
         
         st.session_state["qr_text"] = str(qr_text)
