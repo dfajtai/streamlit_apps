@@ -642,7 +642,7 @@ def app():
         dummy_qr = generate_qr_code_with_border(qr_text,None,border_size=qr_padding)
         min_size = 100.0 * (0.8 * qr_box_mm * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
         optimal_size = 100.0 * (1.0 * qr_box_mm  * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
-        
+        st.sidebar.info(f"Optimal size: {optimal_size}%")
         optimal_size = max(float(st.session_state['qr_size']), optimal_size)
         
         st.session_state["qr_text"] = str(qr_text)
