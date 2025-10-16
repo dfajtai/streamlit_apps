@@ -432,7 +432,8 @@ def crop_main_page_fullwidth(images):
 
         st.session_state["main_atuo_crop"] =  st.checkbox(
         "🧩 Fit to content",
-        value=True
+        value=True,
+        key=f"main_crop_fit_cb"
         )
         
         # --- crop range sliders ---
@@ -577,7 +578,8 @@ def crop_creation_ui(images):
 
     fit_to_content = st.checkbox(
         "🧩 Fit to content",
-        value=True
+        value=True,
+        key=f"crop_fit_cb"
     )
 
     if st.button("Add crop", width="stretch"):
@@ -695,7 +697,7 @@ def crops_placement_ui(page_img, crop_preview_width=600, placement_preview_width
 
             crop.scale = st.slider(
                 f"Scale ({crop.name})",
-                0.1, 5.0,
+                0.1, 2.0,
                 crop.scale,
                 step=0.1,
                 key=f"scale_{idx}"
