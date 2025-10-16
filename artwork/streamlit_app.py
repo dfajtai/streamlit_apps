@@ -608,7 +608,7 @@ def app():
     page_height_px = int(page_sizes_mm[page_size][1] * output_dpi / 25.4)
     page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_sizes_mm[page_size])
 
-    point_per_mm = output_dpi / 25.4
+    point_per_mm = page_size_px[0] / page_sizes_mm[page_size][0]
     
     st.session_state['page_height_px'] = page_height_px
     scaled_page_img = scale_image(page_img, *page_size_px)
