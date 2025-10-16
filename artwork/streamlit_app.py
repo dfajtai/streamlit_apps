@@ -642,7 +642,7 @@ def app():
     if str(qr_text) != "":
         dummy_qr = generate_qr_code_with_border(qr_text,None,border_size=qr_padding)
         min_size = 100.0 * (0.8 * qr_box_mm * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
-        optimal_size = 100.0 * (1.0 * qr_box_mm  * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
+        optimal_size = 100.0 * (1.2 * qr_box_mm  * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
         
         min_size = round_to_step(min_size,2.5)
         optimal_size = round_to_step(optimal_size,2.5)
