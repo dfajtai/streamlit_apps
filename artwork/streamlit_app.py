@@ -29,6 +29,7 @@ class Crop:
     scale: float = 1.0
     visible: bool = True
     opacity: int = 100
+    remove_bg: bool = True
 
 
 # --- PAGE SELECTOR CLASS ---
@@ -157,26 +158,38 @@ def place_crop_on_page(page_img, crop: Crop):
     cropped = crop.crop_img_orig.crop(crop.box)
     cropped_resized = cropped.resize((crop_w, crop_h), Image.LANCZOS)
 
-    # Border hozzáadása fekete színnel (nem fehér)
     if crop.add_border:
         cropped_resized = ImageOps.expand(cropped_resized, border=crop.border_thickness, fill='black')
 
-    # Áttetszőség beállítása
-    if crop.opacity < 100:
+    # Ha remove_bg True vagy opacity < 100, eltávolítjuk a fehér hátteret és állítjuk az alfát
+    if crop.remove_bg or crop.opacity < 100:
         if cropped_resized.mode != 'RGBA':
             cropped_resized = cropped_resized.convert('RGBA')
 
-        alpha = cropped_resized.getchannel('A')
-        alpha = alpha.point(lambda p: int(p * crop.opacity / 100))
-        cropped_resized.putalpha(alpha)
+        datas = cropped_resized.getdata()
+        newData = []
+        threshold = 250
+        for item in datas:
+            r, g, b, a = item
+            if r > threshold and g > threshold and b > threshold:
+                # Fehér pixel -> teljesen átlátszó
+                newData.append((r, g, b, 0))
+            else:
+                # Nem fehér pixel - alfa opacity szerint korrigálva
+                effective_opacity = crop.opacity if not crop.remove_bg else 100
+                new_alpha = int(a * effective_opacity / 100)
+                newData.append((r, g, b, new_alpha))
+        cropped_resized.putdata(newData)
 
-    composed = page_img.copy()
+    overlay = Image.new('RGBA', page_img.size, (0, 0, 0, 0))
     pos_x = int((page_img.width - cropped_resized.width) / 2 + crop.offset_x)
     pos_y = int((page_img.height - cropped_resized.height) / 2 + crop.offset_y)
+    overlay.paste(cropped_resized, (pos_x, pos_y), cropped_resized)
 
-    composed.paste(cropped_resized, (pos_x, pos_y), cropped_resized)
+    composed = Image.alpha_composite(page_img.convert('RGBA'), overlay)
 
     return composed
+
 
 
 def export_image_to_png(img: Image.Image, dpi: int) -> bytes:
@@ -279,7 +292,8 @@ def crop_creation_ui(images):
             height=height,
             aspect_ratio=aspect_ratio,
             visible=True,
-            opacity=100,
+            remove_bg= True,
+            opacity=100
         )
 
         if 'crops' not in st.session_state:
@@ -351,6 +365,31 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
                 key=f"scale_{idx}"
             )
 
+            o1, o2 = st.columns(2)
+            
+            crop.opacity = st.slider("Opacity", 0, 100, getattr(crop, 'opacity', 100), step = 5, key=f"opacity_{idx}")
+            crop.remove_bg = o1.checkbox("Remove background", value=True, key=f"remove_bg_{idx}")
+            crop.visible = o2.checkbox("Visible", value=getattr(crop, 'visible', True), key=f"visible_{idx}")
+            
+
+            b1,b2 = st.columns(2)
+            crop.add_border = b1.checkbox("Add black border", value=crop.add_border, key=f"border_{idx}")
+            crop.border_thickness = b2.number_input(
+                "Border thickness", 1, 20,
+                getattr(crop, 'border_thickness', 3),
+                key=f"border_thickness_{idx}"
+            )
+
+            d1, d2 = st.columns(2)
+            delete_clicked = d1.button("Delete", key=f"delete_{idx}", use_container_width=True)
+            confirm = d2.checkbox("Confirm delete", key=f"confirm_{idx}",width="stretch")
+
+            if delete_clicked and confirm:
+                del st.session_state['crops'][idx]
+                st.success(f"Crop '{crop.name}' deleted.")
+                st.rerun()
+                return
+
         with col2:
             # Teljes oldalkép preview piros kerettel
             preview_max_width = placement_preview_width
@@ -378,31 +417,7 @@ def crops_placement_ui(page_img, crop_preview_width = 600, placement_preview_wid
 
             st.image(preview_img, caption=f"Full page preview with crop: {crop.name}", width=preview_max_width)
 
-        # Második táblázat: visible és opacity
-        vis_col, op_col = st.columns([1, 2])
-        crop.visible = vis_col.checkbox("Visible", value=getattr(crop, 'visible', True), key=f"visible_{idx}")
-        crop.opacity = op_col.slider("Opacity", 0, 100, getattr(crop, 'opacity', 100), step = 5, key=f"opacity_{idx}")
-
-        # Harmadik táblázat: border és vastagsága
-        border_col, thick_col = st.columns(2)
-        crop.add_border = border_col.checkbox("Add black border", value=crop.add_border, key=f"border_{idx}")
-        crop.border_thickness = thick_col.slider(
-            "Border thickness", 1, 20,
-            getattr(crop, 'border_thickness', 3),
-            key=f"border_thickness_{idx}"
-        )
-
-        # Negyedik táblázat: delete gomb és confirm checkbox
-        del_col, conf_col = st.columns([1, 1])
-        delete_clicked = del_col.button("Delete", key=f"delete_{idx}", use_container_width=True)
-        confirm = conf_col.checkbox("Confirm delete", key=f"confirm_{idx}",width="stretch")
-
-        if delete_clicked and confirm:
-            del st.session_state['crops'][idx]
-            st.success(f"Crop '{crop.name}' deleted.")
-            st.rerun()
-            return
-
+        
         if not crop.visible:
             continue
 
@@ -570,33 +585,25 @@ def app():
         st.info("Please upload a PDF file first.")
         return
 
-    input_dpi = st.sidebar.number_input("Input DPI", 72, 600, 150, 1)
-    output_dpi = st.sidebar.number_input("Output DPI", 72, 1200, 300, 1)
-    
-    # Ellenőrzés, hogy új PDF vagy input DPI változás történt-e
-    if ('pdf_name' not in st.session_state) or (st.session_state['pdf_name'] != pdf_file.name) or (st.session_state.get('input_dpi') != input_dpi):
-        st.session_state['images'] = load_pdf_and_convert(pdf_file, dpi=input_dpi)
-        st.session_state['pdf_name'] = pdf_file.name
-        st.session_state['input_dpi'] = input_dpi
-        st.session_state['crops'] = []
-        st.session_state['main_page'] = 1
 
-    images = st.session_state['images']
-    manage_main_page_selection(images)
-    main_idx = st.session_state.get("main_page", 1) - 1
-    page_img = images[main_idx].convert("RGBA")
+    input_dpi, output_dpi, page_size, page_sizes_mm = None, None, None, None
+    with st.sidebar.expander("Resolution settings"):
+        input_dpi = st.select_slider("Input DPI", value=150, options = [72, 96, 100, 150, 300, 600, 1200])
+        output_dpi = st.select_slider("Output DPI", value=150, options = [72, 96, 100, 150, 300, 600, 1200])
+        
+        # Ellenőrzés, hogy új PDF vagy input DPI változás történt-e
+        if ('pdf_name' not in st.session_state) or (st.session_state['pdf_name'] != pdf_file.name) or (st.session_state.get('input_dpi') != input_dpi):
+            st.session_state['images'] = load_pdf_and_convert(pdf_file, dpi=input_dpi)
+            st.session_state['pdf_name'] = pdf_file.name
+            st.session_state['input_dpi'] = input_dpi
+            st.session_state['crops'] = []
+            st.session_state['main_page'] = 1
 
-    # --- Base page scaling ---
-    page_sizes_mm = {"A5": (148, 210), "A4": (210, 297), "A3": (297, 420)}
-    page_size = st.sidebar.selectbox("Output page size", list(page_sizes_mm.keys()), index=2)
-    
-    page_height_px = int(page_sizes_mm[page_size][1] * output_dpi / 25.4)
-    page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_sizes_mm[page_size])
+        # --- Base page scaling ---
+        page_sizes_mm = {"A5": (148, 210), "A4": (210, 297), "A3": (297, 420)}
+        page_size = st.selectbox("Output page size", list(page_sizes_mm.keys()), index=2)
 
-    st.session_state['page_height_px'] = page_height_px
-    scaled_page_img = scale_image(page_img, *page_size_px)
-
-    st.sidebar.info(
+        st.info(
         """
         DPI guideline:
         - 72 DPI: Web, screen view
@@ -608,7 +615,19 @@ def app():
         """
         )
 
-    st.sidebar.divider()
+
+    images = st.session_state['images']
+    manage_main_page_selection(images)
+    main_idx = st.session_state.get("main_page", 1) - 1
+    page_img = images[main_idx].convert("RGBA")
+        
+    page_height_px = int(page_sizes_mm[page_size][1] * output_dpi / 25.4)
+    page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_sizes_mm[page_size])
+
+    st.session_state['page_height_px'] = page_height_px
+    scaled_page_img = scale_image(page_img, *page_size_px)
+
+
 
     # --- Add title and QR last ---
     title_text = st.sidebar.text_input("Optional Title", "")
