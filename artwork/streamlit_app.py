@@ -474,7 +474,7 @@ def add_title_and_qr_code(
         elif pos_string == "top-right":
             pos = (img.width - x_margin  - qr_img.width, y_margin)
         elif pos_string == "bottom-left":
-            pos = (0, img.height - qr_img.height - y_margin)
+            pos = (x_margin, img.height - qr_img.height - y_margin)
         else:
             pos = (img.width - qr_img.width - x_margin, img.height - qr_img.height - y_margin)
         return pos
