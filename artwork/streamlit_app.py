@@ -551,6 +551,8 @@ def app():
     st.set_page_config(page_title="ArtWork")
     st.title("Artwork - an article preview creator")
 
+    if 'qr_size' not in st.session_state:
+        st.session_state['qr_size' ] = 0
    
     if 'font' not in st.session_state:
         font_path = "montserrat.ttf"
@@ -639,10 +641,15 @@ def app():
     if str(qr_text) != "":
         dummy_qr = generate_qr_code_with_border(qr_text,None,border_size=qr_padding)
         min_size = 100.0 * (0.8 * qr_box_mm * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
-        optimal_size = 100.0 * (1.0 * qr_box_mm  * (dummy_qr.width / point_per_mm)) /  page_size_px[0] 
+        optimal_size = 100.0 * (1.0 * qr_box_mm  * (dummy_qr.width / point_per_mm)) /  page_size_px[0]
+        
+        optimal_size = max(float(st.session_state['qr_size']), optimal_size)
+        
         st.session_state["qr_text"] = str(qr_text)
     
     _qr_size = st.sidebar.slider("QR Code size (page width %)",min_size,50.0,optimal_size,2.5)
+    st.session_state['qr_size' ] = _qr_size
+    
     qr_size = int(_qr_size / 100.0 * page_size_px[0])
 
     st.markdown("### Define and Manage Crops")
