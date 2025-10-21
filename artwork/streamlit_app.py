@@ -1,10 +1,14 @@
 from typing import Union, Tuple, List, Dict
 
 import os
+import json
+from pathlib import Path
+
 import streamlit as st
 import pymupdf
 
 import numpy as np 
+import pandas as pd
 
 from PIL import Image, ImageOps
 from PIL import ImageDraw, ImageFont
@@ -1079,5 +1083,137 @@ def app():
         mime="image/png"
     )
 
+# HEADLESS
+PAGE_SIZES_MM = {
+    "A3": (297, 420),
+    "A4": (210, 297),
+    "A5": (148, 210)
+}
+
+def mm_to_px(mm, dpi):
+    """Millimétert konvertál pixelre."""
+    return int(mm / 25.4 * dpi)
+
+def get_page_size_px(size_name, dpi):
+    """A megadott szabványos oldal méretét adja vissza pixelben."""
+    if size_name.upper() not in PAGE_SIZES_MM:
+        raise ValueError(f"Ismeretlen oldal méret: {size_name}")
+    w_mm, h_mm = PAGE_SIZES_MM[size_name.upper()]
+    return mm_to_px(w_mm, dpi), mm_to_px(h_mm, dpi)
+
+
+def headless_qr(df: pd.DataFrame, preset_path: str, out_dir: str) -> None:
+    """
+    Headless PDF processing to generate images with optional title and QR code.
+
+    Iterates over a pandas DataFrame containing PDF paths, QR code text, and output file names,
+    renders the first page (or a specified start page) of each PDF to an image at the specified
+    input DPI, rescales it to a standard page size at the output DPI, and applies a title and QR code.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing the following columns:
+        - 'pdf_path': path to the input PDF file.
+        - 'qr_text': text to encode in the QR code.
+        - 'out_name': output file name (without extension).
+
+    preset_path : str
+        Path to a JSON file containing processing settings:
+        - input_dpi : int, default 150
+        - output_dpi : int, default 300
+        - start_page : int, default 0
+        - page_size : str, one of "A3", "A4", "A5"
+        - font_path : str
+        - font_size : int
+        - title_text : str
+        - stroke_width : int
+        - with_underline : bool
+        - qr_params : dict containing QR code parameters
+            (qr_size, qr_box_size, qr_padding, qr_position, qr_margin_factor,
+             qr_w_displace, qr_h_displace)
+
+    out_dir : str
+        Directory where output images will be saved. Created if it does not exist.
+
+    Returns
+    -------
+    None
+        Saves processed images as PNG files in `out_dir`.
+    """
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+
+    with open(preset_path, "r", encoding="utf-8") as f:
+        preset = json.load(f)
+
+    input_dpi = preset.get("input_dpi", 150)
+    output_dpi = preset.get("output_dpi", 300)
+    start_page = preset.get("start_page", 0)
+    page_size_name = preset.get("page_size", "A3")
+    page_width, page_height = get_page_size_px(page_size_name, output_dpi)
+
+    font_path = preset.get("font_path", "")
+    font_size = preset.get("font_size", 48)
+    title_text = preset.get("title_text", "")
+    stroke_width = preset.get("stroke_width", 2)
+    with_underline = preset.get("with_underline", False)
+    qr_params = preset.get("qr_params", {})
+
+    print(f"📄 Page size: {page_size_name} ({page_width}x{page_height}px @ {output_dpi} DPI)")
+    print(f"🔍 Input DPI: {input_dpi} → Output DPI: {output_dpi}")
+    out_path = Path(out_dir)
+
+    for i, row in df.iterrows():
+        pdf_path = Path(row["pdf_path"])
+        qr_text = str(row["qr_text"])
+        out_name = Path(row["out_name"])
+
+        if not pdf_path.exists():
+            print(f"⚠️ {pdf_path} not found, skipping.")
+            continue
+
+        print(f"[{i+1}/{len(df)}] Processing: {pdf_path.name}")
+
+        # --- Load PDF and render specified page ---
+        doc = pymupdf.open(pdf_path)
+        if start_page >= len(doc):
+            print(f"⚠️ start_page {start_page} out of range, skipping.")
+            continue
+
+        page = doc[start_page]
+        zoom = input_dpi / 72.0
+        mat = pymupdf.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat)
+        base_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+        # --- Resize to standard page size using Lanczos filter ---
+        base_img = base_img.resize((page_width, page_height), Image.LANCZOS)
+
+        # --- Apply title and QR code ---
+        composed = add_title_and_qr_code(
+            base_img=base_img,
+            font_path=font_path,
+            font_size=font_size,
+            title_text=title_text,
+            stroke_width=stroke_width,
+            with_underline=with_underline,
+            qr_text=qr_text,
+            qr_size=qr_params.get("qr_size", 100),
+            qr_box_size=qr_params.get("qr_box_size", 10),
+            qr_padding=qr_params.get("qr_padding", 0),
+            qr_position=qr_params.get("qr_position", "bottom-right"),
+            qr_margin_factor=qr_params.get("qr_margin_factor", 0),
+            qr_w_displace=qr_params.get("qr_w_displace", 0),
+            qr_h_displace=qr_params.get("qr_h_displace", 0)
+        )
+
+        # --- Save output image ---
+        composed.save(out_path / out_name.with_suffix(".png"))
+        print(f"✅ Saved: {out_path / out_name.with_suffix('.png')}")
+
+    print("🎯 Headless processing completed.")
+
+    
 if __name__ == "__main__":
     app()
