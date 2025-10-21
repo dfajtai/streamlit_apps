@@ -138,8 +138,11 @@ class PageSelector:
 
 # --- UTILS ---
 
-def round_to_step(value, step=5.0):
-    return round(value / step) * step
+def round_to_step(value, step=5.0, floor = False):
+    if floor:
+        return np.floor(value / step) * step
+    else:
+        return np.round(value / step) * step
 
 def load_custom_font(font_path: str, font_size: int):
     font_path = os.path.join(ROOT_FOLDER, "assets",font_path)
@@ -803,7 +806,9 @@ def add_title_and_qr_code(
     qr_box_size: int = 10,
     qr_padding: int = 0,
     qr_position: str = "bottom-right",
-    qr_margin_factor: float = 0
+    qr_margin_factor: float = 0,
+    qr_w_displace: float = 0,
+    qr_h_displace:float = 0
 ) -> Image.Image:
     img = base_img.copy()
     
@@ -812,25 +817,31 @@ def add_title_and_qr_code(
     
     # Ha nincs cím, csak térj vissza a sima képpel esetleg QR-rel
     
-    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor):
+    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace):
         x_margin = int(img.width * qr_margin_factor /100.0)
         y_margin  = int(img.height * qr_margin_factor/100.0)
         
+        x_displace = int(img.width * qr_w_displace  / 100.0)
+        y_displace = int(img.height * qr_h_displace / 100.0)
+
         if pos_string == "top-left":
-            pos = (x_margin, y_margin)
+            pos = (x_margin + x_displace, y_margin + y_displace)
         elif pos_string == "top-right":
-            pos = (img.width - x_margin  - qr_img.width, y_margin)
+            pos = (img.width - x_margin - x_displace - qr_img.width, y_margin + y_displace)
         elif pos_string == "bottom-left":
-            pos = (x_margin, img.height - qr_img.height - y_margin)
+            pos = (x_margin + x_displace, img.height - qr_img.height - y_margin - y_displace)
+        elif pos_string == "bottom-right":
+            pos = (img.width - qr_img.width - x_margin - x_displace, img.height - qr_img.height - y_margin - y_displace)
         else:
-            pos = (img.width - qr_img.width - x_margin, img.height - qr_img.height - y_margin)
+            pos = (int(x_displace - (qr_img.width/2.0)), int(y_displace - (qr_img.height/2.0)))
         return pos
         
     if not title_text.strip():
         # QR kód hozzáadása, ha meg van adva
         if qr_text.strip():
             qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
-            pos = get_qr_pos(pos_string= qr_position, img=img, qr_img=qr_img, qr_margin_factor=qr_margin_factor)
+            pos = get_qr_pos(pos_string= qr_position, img=img, qr_img=qr_img, qr_margin_factor=qr_margin_factor,  
+                             qr_w_displace =qr_w_displace, qr_h_displace= qr_h_displace)
             img.paste(qr_img, pos, qr_img)
         return img
 
@@ -890,7 +901,8 @@ def add_title_and_qr_code(
     # 7. QR kód hozzáadás
     if qr_text.strip():
         qr_img =  generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
-        pos = get_qr_pos(pos_string= qr_position, img=new_canvas, qr_img=qr_img, qr_margin_factor=qr_margin_factor)
+        pos = get_qr_pos(pos_string= qr_position, img=new_canvas, qr_img=qr_img, qr_margin_factor=qr_margin_factor, 
+                         qr_w_displace = qr_w_displace, qr_h_displace = qr_h_displace)
         new_canvas.paste(qr_img, pos, qr_img)
 
     return new_canvas
@@ -983,12 +995,14 @@ def app():
 
 
     qr_text = st.sidebar.text_area("QR Code Text (max 200 chars)", max_chars=200)
-    qr_position = st.sidebar.selectbox("QR Code position", ["top-left", "top-right", "bottom-left", "bottom-right"], index = 1)
+    qr_position = st.sidebar.selectbox("QR Code position", ["top-left", "top-right", "bottom-left", "bottom-right", "custom"], index = 1)
     
     qr_m, qr_p = st.sidebar.columns(2)
     qr_margin = qr_m.slider("QR Code page margin (%)", 0.0, 5.0,0.0,0.5) 
     qr_padding = qr_p.slider("QR Code padding (%)", 2.5,20.0,5.0,2.5)
-    
+
+    qr_h_d, qr_v_d = st.sidebar.columns(2)    
+
     qr_box_mm =  st.sidebar.slider("Approx. QR Code symbol size (mm)", 2.0,8.0,3.0,0.5)
     
     min_size = 10.0
@@ -1006,10 +1020,23 @@ def app():
         
         st.session_state["qr_text"] = str(qr_text)
     
-    _qr_size = st.sidebar.slider("QR Code size (page width %)",min_size,50.0,optimal_size,2.5)
-    st.session_state['qr_size' ] = _qr_size
+    qr_w_percent = st.sidebar.slider("QR Code size (page width %)",min_size,50.0,optimal_size,2.5)
+    st.session_state['qr_size' ] = qr_w_percent
+    qr_size = int(qr_w_percent / 100.0 * page_size_px[0])
+
+    qr_h_percent = int(qr_size / page_size_px[1]*100.0)
+
+    min_w_displace = round_to_step(qr_w_percent/2.0,2.5, floor=False) if qr_position == "custom" else 0.0
+    max_w_displace =round_to_step(100.0 - (qr_w_percent/2.0) ,2.5, floor=True) if qr_position == "custom" else round_to_step(50.0 - qr_w_percent,2.5, floor=True)
+
+    min_h_displace = round_to_step(qr_h_percent/2.0,2.5, floor=False)  if qr_position == "custom" else 0.0
+    max_h_displace = round_to_step(100.0 - (qr_h_percent/2.0) ,2.5, floor=True) if qr_position == "custom" else round_to_step(50.0 - qr_h_percent,2.5, floor=True)
+
+    qr_w_displace = qr_h_d.slider("Horizontal displacement (%)", min_w_displace, max_w_displace, min_w_displace, 2.5)
+    qr_h_displace = qr_v_d.slider("Vertical displacement (%)", min_h_displace, max_h_displace, min_h_displace, 2.5)
+
+
     
-    qr_size = int(_qr_size / 100.0 * page_size_px[0])
 
     st.markdown("### Define and Manage Crops")
     add_crops = st.checkbox("Add crops to the page")
@@ -1033,7 +1060,9 @@ def app():
         qr_padding = qr_padding, 
         qr_position=qr_position,
         qr_box_size= 10,
-        qr_margin_factor= qr_margin
+        qr_margin_factor= qr_margin,
+        qr_w_displace = qr_w_displace,
+        qr_h_displace = qr_h_displace
     )
 
     st.markdown("## 🧾 Final Output with QR")
