@@ -31,7 +31,7 @@ class Crop:
     box: tuple                  # (left, upper, right, lower)
     crop_img_orig: Image.Image
     add_border: bool
-    border_thickness: int       # új mező, pl alapértelmezett 3
+    border_thickness: int  
     name: str
     width: int
     height: int
@@ -112,12 +112,10 @@ class PageSelector:
         st.markdown(f"### {self.label}")
 
         if self.num_pages == 1:
-            # Csak egy oldal van, nem jelenítünk meg semmit, csak visszatérünk 0-val
             st.text(f"Only one page available: {self.label} Page 1")
             st.session_state[f"{self.key_prefix}_page"] = 1
             return 0
 
-        # Ellenkező esetben a slider UI jelenik meg
         selected_page = st.session_state.get(f"{self.key_prefix}_page", 1)
 
         selected_page = st.number_input(
@@ -304,6 +302,48 @@ def scale_image(image, target_width, target_height):
     new_h = int(image.height * scale)
     return image.resize((new_w, new_h), Image.LANCZOS)
 
+
+def export_image_to_png(img: Image.Image, dpi: int) -> bytes:
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='PNG', dpi=(dpi, dpi))
+    return img_byte_arr.getvalue()
+
+
+def adjust_vals(
+    base_min: int,
+    base_max: int,
+    base_value: int,
+    step: int,
+    min_ratio=0.1,
+    max_ratio=0.25,
+    session_key_page_height='page_height_px'
+):
+    """
+    A session_state-ből lekéri a page_height_px-et és aszerint visszaadja
+    a csúszka értékeit (min, max, step, value).
+
+    Az alap min és max értékeket is figyelembe veszi, de a page_height_px arányában
+    dinamikusan számol.
+    min_ratio és max_ratio az arányok a page_height_px-hez.
+
+    Visszatérési érték: (min, max, step, value)
+    """
+
+    page_height_px = st.session_state.get(session_key_page_height, None)
+    if page_height_px is None:
+        # Ha nincs session állapotban, alap értékeket ad vissza
+        return base_min, base_max, step, base_value
+
+    qr_min = max(base_min, int(page_height_px * min_ratio))
+    qr_max = max(qr_min + 50, int(page_height_px * max_ratio))
+    qr_default = int((qr_min + qr_max) / 2)
+
+    # A visszatérési érték marad Streamlit slider kompatibilis
+    return qr_min, qr_max, qr_default, step
+
+
+# --- LOGIC ---
+
 def place_crop_on_page(page_img, crop: Crop):
     # Számoljuk a scale faktort a canvas és a page_img méretei alapján
     scale_w = page_img.width / crop.canvas_width
@@ -372,47 +412,120 @@ def place_crop_on_page(page_img, crop: Crop):
     return composed
 
 
-def export_image_to_png(img: Image.Image, dpi: int) -> bytes:
-    img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format='PNG', dpi=(dpi, dpi))
-    return img_byte_arr.getvalue()
+def add_title_and_qr_code(
+    base_img: Image.Image,
+    font_path: str,
+    font_size: int,
+    title_text: str = "",
+    stroke_width: int = 2,
+    with_underline: bool = False,
+    qr_text: str = "",
+    qr_size: int = 100,
+    qr_box_size: int = 10,
+    qr_padding: int = 0,
+    qr_position: str = "bottom-right",
+    qr_margin_factor: float = 0,
+    qr_w_displace: float = 0,
+    qr_h_displace:float = 0
+) -> Image.Image:
+    img = base_img.copy()
+    
+    margin = int(img.height * 0.03)
 
+    
+    # Ha nincs cím, csak térj vissza a sima képpel esetleg QR-rel
+    
+    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace):
+        x_margin = int(img.width * qr_margin_factor /100.0)
+        y_margin  = int(img.height * qr_margin_factor/100.0)
+        
+        x_displace = int(img.width * qr_w_displace  / 100.0)
+        y_displace = int(img.height * qr_h_displace / 100.0)
 
-def adjust_vals(
-    base_min: int,
-    base_max: int,
-    base_value: int,
-    step: int,
-    min_ratio=0.1,
-    max_ratio=0.25,
-    session_key_page_height='page_height_px'
-):
-    """
-    A session_state-ből lekéri a page_height_px-et és aszerint visszaadja
-    a csúszka értékeit (min, max, step, value).
+        if pos_string == "top-left":
+            pos = (x_margin + x_displace, y_margin + y_displace)
+        elif pos_string == "top-right":
+            pos = (img.width - x_margin - x_displace - qr_img.width, y_margin + y_displace)
+        elif pos_string == "bottom-left":
+            pos = (x_margin + x_displace, img.height - qr_img.height - y_margin - y_displace)
+        elif pos_string == "bottom-right":
+            pos = (img.width - qr_img.width - x_margin - x_displace, img.height - qr_img.height - y_margin - y_displace)
+        else:
+            pos = (int(x_displace - (qr_img.width/2.0)), int(y_displace - (qr_img.height/2.0)))
+        return pos
+        
+    if not title_text.strip():
+        # QR kód hozzáadása, ha meg van adva
+        if qr_text.strip():
+            qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
+            pos = get_qr_pos(pos_string= qr_position, img=img, qr_img=qr_img, qr_margin_factor=qr_margin_factor,  
+                             qr_w_displace =qr_w_displace, qr_h_displace= qr_h_displace)
+            img.paste(qr_img, pos, qr_img)
+        return img
 
-    Az alap min és max értékeket is figyelembe veszi, de a page_height_px arányában
-    dinamikusan számol.
-    min_ratio és max_ratio az arányok a page_height_px-hez.
+    # 1. Betöltjük a fontot és kiszámoljuk a cím magasságát
+    font, success = load_custom_font(font_path, font_size)
+    dummy_draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    bbox = dummy_draw.textbbox((0, 0), title_text, font=font)
+    title_height = bbox[3] - bbox[1]
+    
+    title_block_height = title_height + 2 * margin
 
-    Visszatérési érték: (min, max, step, value)
-    """
+    # 2. Új kép magasság, ami a kép + cím sáv
+    total_height = img.height + title_block_height
+    total_width = img.width
 
-    page_height_px = st.session_state.get(session_key_page_height, None)
-    if page_height_px is None:
-        # Ha nincs session állapotban, alap értékeket ad vissza
-        return base_min, base_max, step, base_value
+    # 3. Az új magas kép arányosítása úgy, hogy a teljes magasság változzon, a kép zsugorodjon
+    base_aspect = img.width / img.height
 
-    qr_min = max(base_min, int(page_height_px * min_ratio))
-    qr_max = max(qr_min + 50, int(page_height_px * max_ratio))
-    qr_default = int((qr_min + qr_max) / 2)
+    target_width = total_width
+    target_height = total_height
 
-    # A visszatérési érték marad Streamlit slider kompatibilis
-    return qr_min, qr_max, qr_default, step
+    # Átméretezendő a kép úgy, hogy megfeleljen a title_block magasságának is
+    # A kép magasságát úgy méretezzük, hogy a teljes magasságból levonjuk a cím sáv magasságát
+    max_content_height = target_height - title_block_height
+    scale_ratio = max_content_height / img.height
 
+    new_img_width = int(img.width * scale_ratio)
+    new_img_height = int(img.height * scale_ratio)
+    resized_img = img.resize((new_img_width, new_img_height), Image.LANCZOS)
 
-# --- LOGIC ---
+    # 4. Készítünk egy üres, teljes méretű új képet, fehér háttérrel
+    new_canvas = Image.new("RGBA", (target_width, target_height), (255, 255, 255, 255))
 
+    # 5. A lezsugorított képet függőlegesen középre igazítjuk a cím sav alatt
+    content_top = title_block_height + (max_content_height - new_img_height) // 2
+    content_left = (target_width - new_img_width) // 2
+    new_canvas.paste(resized_img, (content_left, content_top), resized_img)
+
+    # 6. Rajzolunk a cím sávra a cím szöveget, stroke-val, alul vonallal (ha kell)
+    draw = ImageDraw.Draw(new_canvas)
+    x = (target_width - (bbox[2] - bbox[0])) // 2
+    y = margin
+    draw.text(
+        (x, y),
+        title_text,
+        font=font,
+        fill=(0, 0, 0, 255),
+        stroke_width=stroke_width,
+        stroke_fill=(0, 0, 0, 255),
+    )
+
+    if with_underline:
+        line_y = y + title_height + margin // 2
+        line_thickness = max(1, stroke_width)
+        draw.line([(0, line_y), (target_width, line_y)], fill=(0, 0, 0, 255), width=line_thickness)
+
+    # 7. QR kód hozzáadás
+    if qr_text.strip():
+        qr_img =  generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
+        pos = get_qr_pos(pos_string= qr_position, img=new_canvas, qr_img=qr_img, qr_margin_factor=qr_margin_factor, 
+                         qr_w_displace = qr_w_displace, qr_h_displace = qr_h_displace)
+        new_canvas.paste(qr_img, pos, qr_img)
+
+    return new_canvas
+
+# --- GUI ---
 def manage_main_page_selection(images):
     selector = PageSelector("main", images, "Main Page Selection")
     selected_idx = selector.render()
@@ -798,119 +911,6 @@ def crops_placement_ui(page_img, crop_preview_width=600, placement_preview_width
 
 
 
-def add_title_and_qr_code(
-    base_img: Image.Image,
-    font_path: str,
-    font_size: int,
-    title_text: str = "",
-    stroke_width: int = 2,
-    with_underline: bool = False,
-    qr_text: str = "",
-    qr_size: int = 100,
-    qr_box_size: int = 10,
-    qr_padding: int = 0,
-    qr_position: str = "bottom-right",
-    qr_margin_factor: float = 0,
-    qr_w_displace: float = 0,
-    qr_h_displace:float = 0
-) -> Image.Image:
-    img = base_img.copy()
-    
-    margin = int(img.height * 0.03)
-
-    
-    # Ha nincs cím, csak térj vissza a sima képpel esetleg QR-rel
-    
-    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace):
-        x_margin = int(img.width * qr_margin_factor /100.0)
-        y_margin  = int(img.height * qr_margin_factor/100.0)
-        
-        x_displace = int(img.width * qr_w_displace  / 100.0)
-        y_displace = int(img.height * qr_h_displace / 100.0)
-
-        if pos_string == "top-left":
-            pos = (x_margin + x_displace, y_margin + y_displace)
-        elif pos_string == "top-right":
-            pos = (img.width - x_margin - x_displace - qr_img.width, y_margin + y_displace)
-        elif pos_string == "bottom-left":
-            pos = (x_margin + x_displace, img.height - qr_img.height - y_margin - y_displace)
-        elif pos_string == "bottom-right":
-            pos = (img.width - qr_img.width - x_margin - x_displace, img.height - qr_img.height - y_margin - y_displace)
-        else:
-            pos = (int(x_displace - (qr_img.width/2.0)), int(y_displace - (qr_img.height/2.0)))
-        return pos
-        
-    if not title_text.strip():
-        # QR kód hozzáadása, ha meg van adva
-        if qr_text.strip():
-            qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
-            pos = get_qr_pos(pos_string= qr_position, img=img, qr_img=qr_img, qr_margin_factor=qr_margin_factor,  
-                             qr_w_displace =qr_w_displace, qr_h_displace= qr_h_displace)
-            img.paste(qr_img, pos, qr_img)
-        return img
-
-    # 1. Betöltjük a fontot és kiszámoljuk a cím magasságát
-    font, success = load_custom_font(font_path, font_size)
-    dummy_draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    bbox = dummy_draw.textbbox((0, 0), title_text, font=font)
-    title_height = bbox[3] - bbox[1]
-    
-    title_block_height = title_height + 2 * margin
-
-    # 2. Új kép magasság, ami a kép + cím sáv
-    total_height = img.height + title_block_height
-    total_width = img.width
-
-    # 3. Az új magas kép arányosítása úgy, hogy a teljes magasság változzon, a kép zsugorodjon
-    base_aspect = img.width / img.height
-
-    target_width = total_width
-    target_height = total_height
-
-    # Átméretezendő a kép úgy, hogy megfeleljen a title_block magasságának is
-    # A kép magasságát úgy méretezzük, hogy a teljes magasságból levonjuk a cím sáv magasságát
-    max_content_height = target_height - title_block_height
-    scale_ratio = max_content_height / img.height
-
-    new_img_width = int(img.width * scale_ratio)
-    new_img_height = int(img.height * scale_ratio)
-    resized_img = img.resize((new_img_width, new_img_height), Image.LANCZOS)
-
-    # 4. Készítünk egy üres, teljes méretű új képet, fehér háttérrel
-    new_canvas = Image.new("RGBA", (target_width, target_height), (255, 255, 255, 255))
-
-    # 5. A lezsugorított képet függőlegesen középre igazítjuk a cím sav alatt
-    content_top = title_block_height + (max_content_height - new_img_height) // 2
-    content_left = (target_width - new_img_width) // 2
-    new_canvas.paste(resized_img, (content_left, content_top), resized_img)
-
-    # 6. Rajzolunk a cím sávra a cím szöveget, stroke-val, alul vonallal (ha kell)
-    draw = ImageDraw.Draw(new_canvas)
-    x = (target_width - (bbox[2] - bbox[0])) // 2
-    y = margin
-    draw.text(
-        (x, y),
-        title_text,
-        font=font,
-        fill=(0, 0, 0, 255),
-        stroke_width=stroke_width,
-        stroke_fill=(0, 0, 0, 255),
-    )
-
-    if with_underline:
-        line_y = y + title_height + margin // 2
-        line_thickness = max(1, stroke_width)
-        draw.line([(0, line_y), (target_width, line_y)], fill=(0, 0, 0, 255), width=line_thickness)
-
-    # 7. QR kód hozzáadás
-    if qr_text.strip():
-        qr_img =  generate_qr_code_with_border(qr_text.strip(), qr_size= qr_size, box_size=qr_box_size, border_size=qr_padding)
-        pos = get_qr_pos(pos_string= qr_position, img=new_canvas, qr_img=qr_img, qr_margin_factor=qr_margin_factor, 
-                         qr_w_displace = qr_w_displace, qr_h_displace = qr_h_displace)
-        new_canvas.paste(qr_img, pos, qr_img)
-
-    return new_canvas
-
 # --- MAIN APP ---
 
 def app():
@@ -1214,6 +1214,6 @@ def headless_qr(df: pd.DataFrame, preset_path: str, out_dir: str) -> None:
 
     print("🎯 Headless processing completed.")
 
-    
+
 if __name__ == "__main__":
     app()
