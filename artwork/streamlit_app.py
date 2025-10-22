@@ -16,7 +16,7 @@ from PIL import ImageEnhance, ImageChops
 import qrcode
 from streamlit_cropper import st_cropper
 from dataclasses import dataclass
-import io
+import io, base64
 
 ROOT_FOLDER = "artwork"
 # ROOT_FOLDER = ""
@@ -411,6 +411,24 @@ def place_crop_on_page(page_img, crop: Crop):
 
     return composed
 
+def get_qr_pos(pos_string, img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace):
+    x_margin = int(img.width * qr_margin_factor /100.0)
+    y_margin  = int(img.height * qr_margin_factor/100.0)
+    
+    x_displace = int(img.width * qr_w_displace  / 100.0)
+    y_displace = int(img.height * qr_h_displace / 100.0)
+
+    if pos_string == "top-left":
+        pos = (x_margin + x_displace, y_margin + y_displace)
+    elif pos_string == "top-right":
+        pos = (img.width - x_margin - x_displace - qr_img.width, y_margin + y_displace)
+    elif pos_string == "bottom-left":
+        pos = (x_margin + x_displace, img.height - qr_img.height - y_margin - y_displace)
+    elif pos_string == "bottom-right":
+        pos = (img.width - qr_img.width - x_margin - x_displace, img.height - qr_img.height - y_margin - y_displace)
+    else:
+        pos = (int(x_displace - (qr_img.width/2.0)), int(y_displace - (qr_img.height/2.0)))
+    return pos
 
 def add_title_and_qr_code(
     base_img: Image.Image,
@@ -434,26 +452,7 @@ def add_title_and_qr_code(
 
     
     # Ha nincs cím, csak térj vissza a sima képpel esetleg QR-rel
-    
-    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace):
-        x_margin = int(img.width * qr_margin_factor /100.0)
-        y_margin  = int(img.height * qr_margin_factor/100.0)
-        
-        x_displace = int(img.width * qr_w_displace  / 100.0)
-        y_displace = int(img.height * qr_h_displace / 100.0)
-
-        if pos_string == "top-left":
-            pos = (x_margin + x_displace, y_margin + y_displace)
-        elif pos_string == "top-right":
-            pos = (img.width - x_margin - x_displace - qr_img.width, y_margin + y_displace)
-        elif pos_string == "bottom-left":
-            pos = (x_margin + x_displace, img.height - qr_img.height - y_margin - y_displace)
-        elif pos_string == "bottom-right":
-            pos = (img.width - qr_img.width - x_margin - x_displace, img.height - qr_img.height - y_margin - y_displace)
-        else:
-            pos = (int(x_displace - (qr_img.width/2.0)), int(y_displace - (qr_img.height/2.0)))
-        return pos
-        
+            
     if not title_text.strip():
         # QR kód hozzáadása, ha meg van adva
         if qr_text.strip():
@@ -910,6 +909,114 @@ def crops_placement_ui(page_img, crop_preview_width=600, placement_preview_width
     return composed
 
 
+def export_svg_with_qr(base_img, crops,
+                       qr_text, qr_size, qr_box_size, qr_padding,
+                       qr_position, qr_margin_factor, qr_w_displace, qr_h_displace,
+                       page_size_px, output_path=None):
+    """SVG export main + crops + QR pozicionálva a get_qr_pos() logikája szerint."""
+    
+    def to_b64(img: Image.Image):
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    def svg_img_tag(img, x, y, w=None, h=None):
+        if not img:
+            return ""
+        if w is None or h is None:
+            w, h = img.size
+        b64 = to_b64(img)
+        return f'<image href="data:image/png;base64,{b64}" x="{x}" y="{y}" width="{w}" height="{h}" />'
+
+    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace):
+        x_margin = int(img.width * qr_margin_factor / 100.0)
+        y_margin = int(img.height * qr_margin_factor / 100.0)
+        x_displace = int(img.width * qr_w_displace / 100.0)
+        y_displace = int(img.height * qr_h_displace / 100.0)
+
+        if pos_string == "top-left":
+            pos = (x_margin + x_displace, y_margin + y_displace)
+        elif pos_string == "top-right":
+            pos = (img.width - x_margin - x_displace - qr_img.width, y_margin + y_displace)
+        elif pos_string == "bottom-left":
+            pos = (x_margin + x_displace, img.height - qr_img.height - y_margin - y_displace)
+        elif pos_string == "bottom-right":
+            pos = (img.width - qr_img.width - x_margin - x_displace, img.height - qr_img.height - y_margin - y_displace)
+        else:
+            pos = (int(x_displace - (qr_img.width / 2.0)), int(y_displace - (qr_img.height / 2.0)))
+        return pos
+
+    # --- SVG kezdete ---
+    w, h = page_size_px
+    svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">']
+    svg.append("<style>g{isolation:isolate;}</style>")
+
+    # --- main layer ---
+    svg.append('<g id="main_page">')
+    svg.append(svg_img_tag(base_img, 0, 0, *page_size_px))
+    svg.append('</g>')
+
+    # --- crop layerek ---
+    for crop in crops:
+        scale_w = base_img.width / crop.canvas_width
+        scale_h = base_img.height / crop.canvas_height
+
+        margin_x = int(crop.canvas_width * crop.margin / 100.0 * scale_w)
+        margin_y = int(crop.canvas_height * crop.margin / 100.0 * scale_h)
+
+        cropped = crop.crop_img_orig.crop(crop.box)
+        crop_w = int(crop.width * crop.scale * scale_w)
+        crop_h = int(crop.height * crop.scale * scale_h)
+        cropped_resized = cropped.resize((crop_w, crop_h), Image.LANCZOS)
+
+        if margin_x > 0 or margin_y > 0:
+            expanded = Image.new("RGBA", (crop_w + 2*margin_x, crop_h + 2*margin_y), (255,255,255,255))
+            expanded.paste(cropped_resized, (margin_x, margin_y), cropped_resized)
+            cropped_resized = expanded
+
+        if crop.add_border:
+            cropped_resized = ImageOps.expand(cropped_resized, border=crop.border_thickness, fill='black')
+
+        if crop.remove_bg or crop.opacity < 100:
+            if cropped_resized.mode != 'RGBA':
+                cropped_resized = cropped_resized.convert('RGBA')
+            datas = cropped_resized.getdata()
+            new_data = []
+            threshold = 250
+            for (r,g,b,a) in datas:
+                alpha = int(a * crop.opacity / 100)
+                if r>threshold and g>threshold and b>threshold:
+                    if crop.remove_bg:
+                        new_data.append((r,g,b,0))
+                    else:
+                        new_data.append((r,g,b,alpha))
+                else:
+                    new_data.append((r,g,b,alpha))
+            cropped_resized.putdata(new_data)
+
+        pos_x = int((base_img.width - cropped_resized.width)/2 + crop.offset_x * scale_w)
+        pos_y = int((base_img.height - cropped_resized.height)/2 + crop.offset_y * scale_h)
+        svg.append(f'<g id="crop-{crop.name}">{svg_img_tag(cropped_resized, pos_x, pos_y)}</g>')
+
+    # --- QR layer ---
+    if qr_text.strip():
+        qr_img = generate_qr_code_with_border(qr_text.strip(),
+                                              qr_size=qr_size,
+                                              box_size=qr_box_size,
+                                              border_size=qr_padding)
+        pos = get_qr_pos(qr_position, base_img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace)
+        svg.append(f'<g id="qr">{svg_img_tag(qr_img, *pos)}</g>')
+
+    svg.append('</svg>')
+    svg_str = "\n".join(svg)
+
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(svg_str)
+        print(f"✅ SVG mentve: {output_path}")
+    else:
+        return svg_str
+
 
 # --- MAIN APP ---
 
@@ -931,7 +1038,6 @@ def app():
     if not pdf_file:
         st.info("Please upload a PDF file first.")
         return
-
 
     input_dpi, output_dpi, page_size, page_sizes_mm = None, None, None, None
     with st.sidebar.expander("Resolution settings"):
@@ -962,7 +1068,6 @@ def app():
         """
         )
 
-
     images = st.session_state['images']
     manage_main_page_selection(images)
     
@@ -974,7 +1079,6 @@ def app():
     else:
         page_img = images[main_idx].convert("RGBA")
     
-
     page_height_px = int(page_sizes_mm[page_size][1] * output_dpi / 25.4)
     page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_sizes_mm[page_size])
 
@@ -983,21 +1087,24 @@ def app():
     st.session_state['page_height_px'] = page_height_px
     scaled_page_img = scale_image(page_img, *page_size_px)
 
+    # --- TITLE ---
+    title_text = ""
+    font_size_pt = 0
+    stroke_width = 0
+    with_underline = False
+    with st.sidebar.expander("Title settings (Optional)"):
+        title_text = st.text_input("Title", "")
+        font_size_c, font_stroke_c = st.columns(2)
+        
+        f_min, f_max, f_def, f_step = adjust_vals(12, 72, 24, 1, min_ratio=0.01,max_ratio=0.05)
+        font_size_pt = font_size_c.slider("Title Font Size (pt)", f_min, f_max,  f_def, f_step)
+        
+        font_path = "montserrat.ttf"
+        
+        stroke_width = font_stroke_c.slider("Title Stroke Width", 1, 10, 1, 1)
+        with_underline = st.checkbox("Underline Title", value=False)
 
-    # --- Add title and QR last ---
-    title_text = st.sidebar.text_input("Title (Optional)", "")
-    
-    font_size_c, font_stroke_c = st.sidebar.columns(2)
-    
-    f_min, f_max, f_def, f_step = adjust_vals(12, 72, 24, 1, min_ratio=0.01,max_ratio=0.05)
-    font_size_pt = font_size_c.slider("Title Font Size (pt)", f_min, f_max,  f_def, f_step)
-    
-    font_path = "montserrat.ttf"
-    
-    stroke_width = font_stroke_c.slider("Title Stroke Width", 1, 10, 1, 1)
-    with_underline = st.sidebar.checkbox("Underline Title", value=False)
-
-
+    # --- QR ---
     qr_text = st.sidebar.text_area("QR Code Text (max 200 chars)", max_chars=200)
     qr_position = st.sidebar.selectbox("QR Code position", ["top-left", "top-right", "bottom-left", "bottom-right", "custom"], index = 1)
     
@@ -1037,10 +1144,7 @@ def app():
     max_h_displace = round_to_step(100.0 - (qr_h_percent/2.0) ,2.5, floor=True) if qr_position == "custom" else round_to_step(50.0 - qr_h_percent,2.5, floor=True)
 
     qr_w_displace = qr_h_d.slider("Horizontal displacement (%)", min_w_displace, max_w_displace, min_w_displace, 2.5)
-    qr_h_displace = qr_v_d.slider("Vertical displacement (%)", min_h_displace, max_h_displace, min_h_displace, 2.5)
-
-
-    
+    qr_h_displace = qr_v_d.slider("Vertical displacement (%)", min_h_displace, max_h_displace, min_h_displace, 2.5)   
 
     st.markdown("### Define and Manage Crops")
     add_crops = st.checkbox("Add crops to the page")
@@ -1072,16 +1176,43 @@ def app():
     st.markdown("## 🧾 Final Output with QR")
     st.image(final_img, width="stretch")
 
-
     # --- Export final image ---
     st.subheader("💾 Export Final Image")
+
+    out_name = str(os.path.basename(pdf_file.name)).replace(".pdf","")
+
     png_bytes = export_image_to_png(final_img, output_dpi)
-    st.download_button(
+
+    png_col, svg_col = st.columns(2)
+
+    png_col.download_button(
         "Download Final PNG",
         data=png_bytes,
-        file_name="final_output.png",
-        mime="image/png"
+        file_name=f"{out_name}-preview.png",
+        mime="image/png",
+        width="stretch"
     )
+
+    svg_col.download_button(
+        label="Download Final SVG",
+        data=export_svg_with_qr(
+            base_img=scaled_page_img,
+            crops=st.session_state.get("crops", []),
+            qr_text=qr_text,
+            qr_size=qr_size,
+            qr_box_size=10,
+            qr_padding=qr_padding,
+            qr_position=qr_position,
+            qr_margin_factor=qr_margin,
+            qr_w_displace=qr_w_displace,
+            qr_h_displace=qr_h_displace,
+            page_size_px=page_size_px
+        ).encode("utf-8"),  # bytes kell legyen
+        file_name=f"{out_name}-preview.svg",
+        mime="image/svg+xml",
+        width="stretch"
+    )
+
 
 # HEADLESS
 PAGE_SIZES_MM = {
