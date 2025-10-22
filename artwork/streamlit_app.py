@@ -19,7 +19,6 @@ from dataclasses import dataclass
 import io, base64
 
 ROOT_FOLDER = "artwork"
-# ROOT_FOLDER = ""
 
 
 # --- DATA CLASS ---
@@ -909,68 +908,60 @@ def crops_placement_ui(page_img, crop_preview_width=600, placement_preview_width
     return composed
 
 
-def export_svg_with_qr(base_img, crops,
-                       qr_text, qr_size, qr_box_size, qr_padding,
-                       qr_position, qr_margin_factor, qr_w_displace, qr_h_displace,
-                       page_size_px, output_path=None):
-    """SVG export main + crops + QR pozicionálva a get_qr_pos() logikája szerint."""
-    
-    def to_b64(img: Image.Image):
+def export_svg_with_qr(
+    base_img, crops,
+    qr_text, qr_size, qr_box_size, qr_padding,
+    qr_position, qr_margin_factor, qr_w_displace, qr_h_displace,
+    page_size_mm, output_dpi):
+    import io
+    import base64
+    from PIL import Image, ImageOps
+
+    pixels_per_mm = output_dpi / 25.4
+    w_mm, h_mm = page_size_mm
+    base_w_px, base_h_px = base_img.size
+
+
+    def px2mm(px):
+        return px / pixels_per_mm
+
+    def to_b64(img):
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-    def svg_img_tag(img, x, y, w=None, h=None):
+    def svg_img_tag(img, x_px, y_px, w_px=None, h_px=None):
         if not img:
             return ""
-        if w is None or h is None:
-            w, h = img.size
+        if w_px is None or h_px is None:
+            w_px, h_px = img.size
         b64 = to_b64(img)
-        return f'<image href="data:image/png;base64,{b64}" x="{x}" y="{y}" width="{w}" height="{h}" />'
+        # return (f'<image href="data:image/png;base64,{b64}" '
+        #         f'x="{px2mm(x_px):.3f}mm" y="{px2mm(y_px):.3f}mm" '
+        #         f'width="{px2mm(w_px):.3f}mm" height="{px2mm(h_px):.3f}mm" />')
 
-    def get_qr_pos(pos_string, img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace):
-        x_margin = int(img.width * qr_margin_factor / 100.0)
-        y_margin = int(img.height * qr_margin_factor / 100.0)
-        x_displace = int(img.width * qr_w_displace / 100.0)
-        y_displace = int(img.height * qr_h_displace / 100.0)
+        return (f'<image href="data:image/png;base64,{b64}" '
+                f'x="{x_px}" y="{y_px}" '
+                f'width="{w_px}" height="{h_px}" />')
 
-        if pos_string == "top-left":
-            pos = (x_margin + x_displace, y_margin + y_displace)
-        elif pos_string == "top-right":
-            pos = (img.width - x_margin - x_displace - qr_img.width, y_margin + y_displace)
-        elif pos_string == "bottom-left":
-            pos = (x_margin + x_displace, img.height - qr_img.height - y_margin - y_displace)
-        elif pos_string == "bottom-right":
-            pos = (img.width - qr_img.width - x_margin - x_displace, img.height - qr_img.height - y_margin - y_displace)
-        else:
-            pos = (int(x_displace - (qr_img.width / 2.0)), int(y_displace - (qr_img.height / 2.0)))
-        return pos
-
-    # --- SVG kezdete ---
-    w, h = page_size_px
-    svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">']
+    svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w_mm}mm" height="{h_mm}mm" viewBox="0 0 {base_w_px} {base_h_px}">']
     svg.append("<style>g{isolation:isolate;}</style>")
 
-    # --- main layer ---
     svg.append('<g id="main_page">')
-    svg.append(svg_img_tag(base_img, 0, 0, *page_size_px))
+    svg.append(svg_img_tag(base_img, 0, 0, base_w_px, base_h_px))
     svg.append('</g>')
 
-    # --- crop layerek ---
     for crop in crops:
-        scale_w = base_img.width / crop.canvas_width
-        scale_h = base_img.height / crop.canvas_height
-
-        margin_x = int(crop.canvas_width * crop.margin / 100.0 * scale_w)
-        margin_y = int(crop.canvas_height * crop.margin / 100.0 * scale_h)
+        margin_x = int(crop.canvas_width * crop.margin / 100.0)
+        margin_y = int(crop.canvas_height * crop.margin / 100.0)
 
         cropped = crop.crop_img_orig.crop(crop.box)
-        crop_w = int(crop.width * crop.scale * scale_w)
-        crop_h = int(crop.height * crop.scale * scale_h)
-        cropped_resized = cropped.resize((crop_w, crop_h), Image.LANCZOS)
+        crop_w_px = int(crop.width * crop.scale)
+        crop_h_px = int(crop.height * crop.scale)
+        cropped_resized = cropped.resize((crop_w_px, crop_h_px), Image.LANCZOS)
 
         if margin_x > 0 or margin_y > 0:
-            expanded = Image.new("RGBA", (crop_w + 2*margin_x, crop_h + 2*margin_y), (255,255,255,255))
+            expanded = Image.new("RGBA", (crop_w_px + 2 * margin_x, crop_h_px + 2 * margin_y), (255, 255, 255, 255))
             expanded.paste(cropped_resized, (margin_x, margin_y), cropped_resized)
             cropped_resized = expanded
 
@@ -983,39 +974,32 @@ def export_svg_with_qr(base_img, crops,
             datas = cropped_resized.getdata()
             new_data = []
             threshold = 250
-            for (r,g,b,a) in datas:
+            for (r, g, b, a) in datas:
                 alpha = int(a * crop.opacity / 100)
-                if r>threshold and g>threshold and b>threshold:
+                if r > threshold and g > threshold and b > threshold:
                     if crop.remove_bg:
-                        new_data.append((r,g,b,0))
+                        new_data.append((r, g, b, 0))
                     else:
-                        new_data.append((r,g,b,alpha))
+                        new_data.append((r, g, b, alpha))
                 else:
-                    new_data.append((r,g,b,alpha))
+                    new_data.append((r, g, b, alpha))
             cropped_resized.putdata(new_data)
 
-        pos_x = int((base_img.width - cropped_resized.width)/2 + crop.offset_x * scale_w)
-        pos_y = int((base_img.height - cropped_resized.height)/2 + crop.offset_y * scale_h)
-        svg.append(f'<g id="crop-{crop.name}">{svg_img_tag(cropped_resized, pos_x, pos_y)}</g>')
+        pos_x_px = int((base_w_px - cropped_resized.width) / 2 + crop.offset_x)
+        pos_y_px = int((base_h_px - cropped_resized.height) / 2 + crop.offset_y)
 
-    # --- QR layer ---
+        svg.append(f'<g id="crop-{crop.name}">{svg_img_tag(cropped_resized, pos_x_px, pos_y_px)}</g>')
+
     if qr_text.strip():
-        qr_img = generate_qr_code_with_border(qr_text.strip(),
-                                              qr_size=qr_size,
-                                              box_size=qr_box_size,
-                                              border_size=qr_padding)
+        qr_img = generate_qr_code_with_border(qr_text.strip(), qr_size=qr_size, box_size=qr_box_size, border_size=qr_padding)
         pos = get_qr_pos(qr_position, base_img, qr_img, qr_margin_factor, qr_w_displace, qr_h_displace)
         svg.append(f'<g id="qr">{svg_img_tag(qr_img, *pos)}</g>')
 
     svg.append('</svg>')
-    svg_str = "\n".join(svg)
 
-    if output_path:
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(svg_str)
-        print(f"✅ SVG mentve: {output_path}")
-    else:
-        return svg_str
+    svg_str = "\n".join(svg)
+    
+    return svg_str
 
 
 # --- MAIN APP ---
@@ -1040,33 +1024,34 @@ def app():
         return
 
     input_dpi, output_dpi, page_size, page_sizes_mm = None, None, None, None
-    with st.sidebar.expander("Resolution settings"):
-        input_dpi = st.select_slider("Input DPI", value=150, options = [72, 96, 100, 150, 300, 600, 1200])
-        output_dpi = st.select_slider("Output DPI", value=150, options = [72, 96, 100, 150, 300, 600, 1200])
-        
-        # Ellenőrzés, hogy új PDF vagy input DPI változás történt-e
-        if ('pdf_name' not in st.session_state) or (st.session_state['pdf_name'] != pdf_file.name) or (st.session_state.get('input_dpi') != input_dpi):
-            st.session_state['images'] = load_pdf_and_convert(pdf_file, dpi=input_dpi)
-            st.session_state['pdf_name'] = pdf_file.name
-            st.session_state['input_dpi'] = input_dpi
-            st.session_state['crops'] = []
-            st.session_state['main_page'] = 1
+    res_settings = st.sidebar.expander("Resolution settings")
 
-        # --- Base page scaling ---
-        page_sizes_mm = {"A5": (148, 210), "A4": (210, 297), "A3": (297, 420)}
-        page_size = st.selectbox("Output page size", list(page_sizes_mm.keys()), index=2)
+    input_dpi = res_settings.select_slider("Input DPI", value=150, options = [72, 96, 100, 150, 300, 600, 1200])
+    output_dpi = res_settings.select_slider("Output DPI", value=150, options = [72, 96, 100, 150, 300, 600, 1200])
+    
+    # Ellenőrzés, hogy új PDF vagy input DPI változás történt-e
+    if ('pdf_name' not in st.session_state) or (st.session_state['pdf_name'] != pdf_file.name) or (st.session_state.get('input_dpi') != input_dpi):
+        st.session_state['images'] = load_pdf_and_convert(pdf_file, dpi=input_dpi)
+        st.session_state['pdf_name'] = pdf_file.name
+        st.session_state['input_dpi'] = input_dpi
+        st.session_state['crops'] = []
+        st.session_state['main_page'] = 1
 
-        st.info(
-        """
-        DPI guideline:
-        - 72 DPI: Web, screen view
-        - 150 DPI: Office printing
-        - 300 DPI: Professional print quality
-        - 600 DPI+: High-resolution
-        
-        WARNING: Changing these values on-fligt can ruin your work.
-        """
-        )
+    # --- Base page scaling ---
+    page_sizes_mm = {"A5": (148, 210), "A4": (210, 297), "A3": (297, 420)}
+    page_size = res_settings.selectbox("Output page size", list(page_sizes_mm.keys()), index=2)
+
+    res_settings.info(
+    """
+    DPI guideline:
+    - 72 DPI: Web, screen view
+    - 150 DPI: Office printing
+    - 300 DPI: Professional print quality
+    - 600 DPI+: High-resolution
+    
+    WARNING: Changing these values on-fligt can ruin your work.
+    """
+    )
 
     images = st.session_state['images']
     manage_main_page_selection(images)
@@ -1079,10 +1064,20 @@ def app():
     else:
         page_img = images[main_idx].convert("RGBA")
     
-    page_height_px = int(page_sizes_mm[page_size][1] * output_dpi / 25.4)
-    page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_sizes_mm[page_size])
+    page_size_mm = page_sizes_mm[page_size]
+    page_height_px = int(page_size_mm[1] * output_dpi / 25.4)
+    page_size_px = tuple(int(dim * output_dpi / 25.4) for dim in page_size_mm)
+    
+    point_per_mm = page_size_px[0] / page_size_mm[0]
 
-    point_per_mm = page_size_px[0] / page_sizes_mm[page_size][0]
+    res_settings.info(
+    f"""
+    - Page size [mm]: {page_size_mm}
+    - Page size [px]: {page_size_px}
+    - Dot per mm: {page_size_px[0]/page_size_mm[0]:.2f},{page_size_px[1]/page_size_mm[1]:.2f}
+    - DPI: {page_size_px[0]/page_size_mm[0]*25.4:.2f},{page_size_px[1]/page_size_mm[1]*25.4:.2f}
+    """
+    )
     
     st.session_state['page_height_px'] = page_height_px
     scaled_page_img = scale_image(page_img, *page_size_px)
@@ -1206,7 +1201,8 @@ def app():
             qr_margin_factor=qr_margin,
             qr_w_displace=qr_w_displace,
             qr_h_displace=qr_h_displace,
-            page_size_px=page_size_px
+            page_size_mm=page_size_mm,
+            output_dpi = output_dpi
         ).encode("utf-8"),  # bytes kell legyen
         file_name=f"{out_name}-preview.svg",
         mime="image/svg+xml",
